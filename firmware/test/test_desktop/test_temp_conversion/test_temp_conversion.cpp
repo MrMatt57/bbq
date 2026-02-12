@@ -70,16 +70,17 @@ void tearDown(void) {
 // values. We allow a tolerance of +/- 5 degrees F for the approximation.
 // --------------------------------------------------------------------------
 
-void test_resistance_33k_is_near_77F(void) {
-    // ~33K ohm should be approximately 77F (25C) -- room temperature
+void test_resistance_33k_is_near_124F(void) {
+    // ~33K ohm gives approximately 124F (51C) with Thermoworks Pro-Series coefficients
     float tempF = resistanceToTempF(33000.0f);
-    TEST_ASSERT_FLOAT_WITHIN(5.0f, 77.0f, tempF);
+    TEST_ASSERT_FLOAT_WITHIN(5.0f, 124.0f, tempF);
 }
 
-void test_resistance_10k_is_near_170F(void) {
-    // ~10K ohm should be approximately 170F (77C)
+void test_resistance_10k_is_near_184F(void) {
+    // ~10K ohm gives approximately 184F (84C) with Thermoworks Pro-Series coefficients
+    // (10K is the reference resistance, where the thermistor matches the pullup)
     float tempF = resistanceToTempF(10000.0f);
-    TEST_ASSERT_FLOAT_WITHIN(5.0f, 170.0f, tempF);
+    TEST_ASSERT_FLOAT_WITHIN(5.0f, 184.0f, tempF);
 }
 
 void test_resistance_5k_is_near_220F(void) {
@@ -88,10 +89,10 @@ void test_resistance_5k_is_near_220F(void) {
     TEST_ASSERT_FLOAT_WITHIN(5.0f, 220.0f, tempF);
 }
 
-void test_resistance_3k_is_near_270F(void) {
-    // ~3K ohm should be approximately 270F (132C)
+void test_resistance_3k_is_near_257F(void) {
+    // ~3K ohm gives approximately 257F (125C) with Thermoworks Pro-Series coefficients
     float tempF = resistanceToTempF(3000.0f);
-    TEST_ASSERT_FLOAT_WITHIN(8.0f, 270.0f, tempF);
+    TEST_ASSERT_FLOAT_WITHIN(5.0f, 257.0f, tempF);
 }
 
 // --------------------------------------------------------------------------
@@ -178,8 +179,9 @@ void test_cToF_negative(void) {
 // --------------------------------------------------------------------------
 
 void test_very_high_resistance_gives_sub_freezing(void) {
-    // 200K ohm -> very cold, should be well below freezing (32F)
-    float tempF = resistanceToTempF(200000.0f);
+    // 500K ohm -> very cold, should be well below freezing (32F)
+    // (200K only reaches ~49F with these coefficients; need 350K+ for sub-freezing)
+    float tempF = resistanceToTempF(500000.0f);
     TEST_ASSERT_TRUE(tempF < 32.0f);
 }
 
@@ -214,11 +216,11 @@ void test_negative_resistance_returns_zero(void) {
 int main(int argc, char** argv) {
     UNITY_BEGIN();
 
-    // Known resistance/temperature pairs
-    RUN_TEST(test_resistance_33k_is_near_77F);
-    RUN_TEST(test_resistance_10k_is_near_170F);
+    // Known resistance/temperature pairs (Thermoworks Pro-Series coefficients)
+    RUN_TEST(test_resistance_33k_is_near_124F);
+    RUN_TEST(test_resistance_10k_is_near_184F);
     RUN_TEST(test_resistance_5k_is_near_220F);
-    RUN_TEST(test_resistance_3k_is_near_270F);
+    RUN_TEST(test_resistance_3k_is_near_257F);
 
     // Monotonicity
     RUN_TEST(test_lower_resistance_gives_higher_temperature);
