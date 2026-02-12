@@ -21,15 +21,16 @@
   var connected = false;
 
   var chart = null;
-  var chartData = [[], [], [], [], [], []]; // [timestamps, pit, meat1, meat2, fan, damper]
+  var chartData = [[], [], [], [], [], [], []]; // [timestamps, pit, meat1, meat2, fan, damper, setpoint]
   var predictionData = { meat1: null, meat2: null }; // { times: [], temps: [] } for each
 
   var pitSetpoint = 225;
   var meat1Target = null;
   var meat2Target = null;
 
-  var cookTimerStart = null;
+  var cookTimerStart = null;  // server timestamp (seconds) when cook started
   var cookTimerInterval = null;
+  var latestServerTs = null;  // most recent msg.ts from server (seconds)
 
   var debounceTimers = {};
 
@@ -226,10 +227,12 @@
       chartData[3].push(d.meat2 !== null && d.meat2 !== undefined && d.meat2 !== -1 ? d.meat2 : null);
       chartData[4].push(d.fan !== undefined ? d.fan : null);
       chartData[5].push(d.damper !== undefined ? d.damper : null);
+      chartData[6].push(d.sp !== undefined ? d.sp : pitSetpoint);
     }
 
     // Update display with the latest point
     var last = msg.data[msg.data.length - 1];
+    latestServerTs = last.ts;
     updateTemperatures(last);
     updateOutputs(last);
 
@@ -287,18 +290,18 @@
     var meat1Valid = msg.meat1 !== null && msg.meat1 !== undefined && msg.meat1 !== -1;
     var meat2Valid = msg.meat2 !== null && msg.meat2 !== undefined && msg.meat2 !== -1;
     if (meat1Valid || meat2Valid) {
-      cookTimerStart = Date.now();
+      cookTimerStart = msg.ts || Math.floor(Date.now() / 1000);
       localStorage.setItem('bbq_cook_timer_start', cookTimerStart.toString());
     }
   }
 
   function tickCookTimer() {
-    if (!cookTimerStart) {
+    if (!cookTimerStart || !latestServerTs) {
       dom.cookTimer.textContent = '00:00:00';
       dom.cookEstimate.textContent = 'Est. --:--:--';
       return;
     }
-    var elapsed = (Date.now() - cookTimerStart) / 1000;
+    var elapsed = latestServerTs - cookTimerStart;
     dom.cookTimer.textContent = formatTime(elapsed);
 
     // Estimated total cook time = max predicted done time - cook start
@@ -309,7 +312,7 @@
     if (est2 && (!maxDone || est2.doneTime > maxDone)) maxDone = est2.doneTime;
 
     if (maxDone) {
-      var totalSec = maxDone - cookTimerStart / 1000;
+      var totalSec = maxDone - cookTimerStart;
       dom.cookEstimate.textContent = 'Est. ' + formatTime(totalSec);
     } else {
       dom.cookEstimate.textContent = 'Est. --:--:--';
@@ -428,6 +431,13 @@
           stroke: '#8b5cf6',
           width: 1.5,
           dash: [6, 3]
+        },
+        {
+          label: 'Setpoint',
+          scale: 'temp',
+          stroke: '#f59e0b',
+          width: 1.5,
+          dash: [8, 4]
         }
       ]
     };
@@ -436,7 +446,8 @@
   }
 
   function appendChartData(msg) {
-    var now = Math.floor(Date.now() / 1000);
+    var now = msg.ts || Math.floor(Date.now() / 1000);
+    latestServerTs = now;
 
     chartData[0].push(now);
     chartData[1].push(msg.pit !== null && msg.pit !== undefined && msg.pit !== -1 ? msg.pit : null);
@@ -444,6 +455,7 @@
     chartData[3].push(msg.meat2 !== null && msg.meat2 !== undefined && msg.meat2 !== -1 ? msg.meat2 : null);
     chartData[4].push(msg.fan !== undefined ? msg.fan : null);
     chartData[5].push(msg.damper !== undefined ? msg.damper : null);
+    chartData[6].push(msg.sp !== undefined ? msg.sp : pitSetpoint);
 
     // Trim data older than 4 hours (keep extra buffer beyond 2h visible window)
     var cutoff = now - 4 * 60 * 60;
