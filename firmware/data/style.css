@@ -1,0 +1,630 @@
+/* BBQ Controller - style.css */
+/* Dark theme with amber/orange BBQ accents */
+
+/* -------------------------------------------------------------------------
+   CSS Custom Properties
+   ------------------------------------------------------------------------- */
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-input: #0f1729;
+  --text-primary: #e0e0e0;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --danger: #ef4444;
+  --success: #10b981;
+  --pit-color: #f59e0b;
+  --meat1-color: #ef4444;
+  --meat2-color: #3b82f6;
+  --fan-color: #10b981;
+  --damper-color: #8b5cf6;
+  --border-radius: 12px;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --transition: 0.3s ease;
+}
+
+/* -------------------------------------------------------------------------
+   Reset & Base
+   ------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* -------------------------------------------------------------------------
+   Status Bar
+   ------------------------------------------------------------------------- */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.status-left,
+.status-right {
+  display: flex;
+  align-items: center;
+  min-width: 100px;
+}
+
+.status-right {
+  justify-content: flex-end;
+}
+
+.status-center {
+  flex: 1;
+  text-align: center;
+}
+
+.app-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.connection-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  transition: background var(--transition);
+}
+
+.connection-indicator.connected .conn-dot {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+.connection-indicator.connected .conn-text {
+  color: var(--success);
+}
+
+.connection-indicator.disconnected .conn-dot {
+  background: var(--danger);
+}
+
+.connection-indicator.disconnected .conn-text {
+  color: var(--danger);
+}
+
+.wifi-icon {
+  color: var(--text-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Dashboard Layout
+   ------------------------------------------------------------------------- */
+.dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* -------------------------------------------------------------------------
+   Cards
+   ------------------------------------------------------------------------- */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+/* -------------------------------------------------------------------------
+   Temperature Cards
+   ------------------------------------------------------------------------- */
+.temp-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.temp-card {
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.temp-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.pit-card::before {
+  background: var(--pit-color);
+}
+
+.meat1-card::before {
+  background: var(--meat1-color);
+}
+
+.meat2-card::before {
+  background: var(--meat2-color);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.probe-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+}
+
+.probe-icon {
+  font-size: 1.2rem;
+}
+
+.temp-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.temp-value {
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: color var(--transition);
+  font-variant-numeric: tabular-nums;
+}
+
+.pit-card .temp-value {
+  color: var(--pit-color);
+}
+
+.meat1-card .temp-value {
+  color: var(--meat1-color);
+}
+
+.meat2-card .temp-value {
+  color: var(--meat2-color);
+}
+
+.temp-unit {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+}
+
+.setpoint-display {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.setpoint-label {
+  color: var(--text-muted);
+}
+
+.setpoint-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.predicted-done {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--accent);
+  min-height: 1.2em;
+}
+
+/* -------------------------------------------------------------------------
+   Output Indicators (Fan / Damper)
+   ------------------------------------------------------------------------- */
+.indicator-row {
+  display: flex;
+  gap: 24px;
+}
+
+.indicator {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.indicator-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  min-width: 55px;
+}
+
+.indicator-bar-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.indicator-bar {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+.fan-bar {
+  background: var(--fan-color);
+}
+
+.damper-bar {
+  background: var(--damper-color);
+}
+
+.indicator-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: right;
+  color: var(--text-primary);
+}
+
+/* -------------------------------------------------------------------------
+   Cook Timer
+   ------------------------------------------------------------------------- */
+.timer-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.timer-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.timer-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* -------------------------------------------------------------------------
+   Chart
+   ------------------------------------------------------------------------- */
+.chart-card {
+  padding: 12px;
+}
+
+.chart-header {
+  margin-bottom: 8px;
+}
+
+.chart-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.chart-container {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* uPlot overrides for dark theme */
+.chart-container .u-legend {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.chart-container .u-legend .u-series th {
+  color: var(--text-secondary);
+  font-weight: 400;
+  padding: 2px 6px;
+}
+
+.chart-container .u-legend .u-series td {
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+}
+
+/* -------------------------------------------------------------------------
+   Controls
+   ------------------------------------------------------------------------- */
+.controls-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.control-group {
+  margin-bottom: 16px;
+}
+
+.control-group:last-child {
+  margin-bottom: 0;
+}
+
+.control-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.control-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-input {
+  width: 80px;
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition: border-color var(--transition);
+  -moz-appearance: textfield;
+}
+
+.control-input::-webkit-outer-spin-button,
+.control-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.control-input:focus {
+  border-color: var(--accent);
+}
+
+.control-input.wide {
+  flex: 1;
+  max-width: 200px;
+}
+
+/* -------------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btn-adjust {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.btn-adjust:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* -------------------------------------------------------------------------
+   Session Controls
+   ------------------------------------------------------------------------- */
+.session-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.session-buttons .btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive: Desktop (2-column layout)
+   ------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  .dashboard {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .temp-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .temp-value {
+    font-size: 3rem;
+  }
+
+  /* Two-column layout for lower sections */
+  .controls-section,
+  .session-section {
+    display: inline;
+  }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "temps temps"
+      "outputs timer"
+      "chart chart"
+      "controls session";
+  }
+
+  .temp-cards {
+    grid-area: temps;
+  }
+
+  .output-indicators {
+    grid-area: outputs;
+  }
+
+  .timer-section {
+    grid-area: timer;
+  }
+
+  .chart-section {
+    grid-area: chart;
+  }
+
+  .controls-section {
+    grid-area: controls;
+  }
+
+  .session-section {
+    grid-area: session;
+  }
+
+  .timer-card {
+    height: 100%;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Responsive: Large Desktop
+   ------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  .temp-value {
+    font-size: 3.2rem;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Animations
+   ------------------------------------------------------------------------- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.connection-indicator.disconnected .conn-dot {
+  animation: pulse 2s infinite;
+}
+
+/* Smooth value transitions */
+.temp-value,
+.indicator-value,
+.timer-value {
+  transition: opacity 0.15s ease;
+}
+
+/* -------------------------------------------------------------------------
+   Scrollbar Styling (Webkit)
+   ------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

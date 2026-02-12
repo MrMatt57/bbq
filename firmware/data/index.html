@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="description" content="BBQ Temperature Controller">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title>BBQ Controller</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Status Bar -->
+  <header class="status-bar">
+    <div class="status-left">
+      <span class="connection-indicator" id="connIndicator" title="Disconnected">
+        <span class="conn-dot"></span>
+        <span class="conn-text" id="connText">Disconnected</span>
+      </span>
+    </div>
+    <div class="status-center">
+      <h1 class="app-title">BBQ Controller</h1>
+    </div>
+    <div class="status-right">
+      <svg class="wifi-icon" id="wifiIcon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+        <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+      </svg>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <!-- Temperature Cards Row -->
+    <section class="temp-cards">
+      <!-- Pit Temperature Card -->
+      <div class="card temp-card pit-card">
+        <div class="card-header">
+          <span class="probe-label">Pit</span>
+          <span class="probe-icon">&#x1F525;</span>
+        </div>
+        <div class="temp-display">
+          <span class="temp-value" id="pitTemp">---</span>
+          <span class="temp-unit">&deg;F</span>
+        </div>
+        <div class="setpoint-display">
+          <span class="setpoint-label">Setpoint:</span>
+          <span class="setpoint-value" id="pitSetpoint">---</span>
+          <span class="temp-unit">&deg;F</span>
+        </div>
+      </div>
+
+      <!-- Meat 1 Temperature Card -->
+      <div class="card temp-card meat1-card">
+        <div class="card-header">
+          <span class="probe-label">Meat 1</span>
+          <span class="probe-icon">&#x1F969;</span>
+        </div>
+        <div class="temp-display">
+          <span class="temp-value" id="meat1Temp">---</span>
+          <span class="temp-unit">&deg;F</span>
+        </div>
+        <div class="setpoint-display">
+          <span class="setpoint-label">Target:</span>
+          <span class="setpoint-value" id="meat1Target">---</span>
+          <span class="temp-unit">&deg;F</span>
+        </div>
+        <div class="predicted-done" id="meat1Prediction"></div>
+      </div>
+
+      <!-- Meat 2 Temperature Card -->
+      <div class="card temp-card meat2-card">
+        <div class="card-header">
+          <span class="probe-label">Meat 2</span>
+          <span class="probe-icon">&#x1F969;</span>
+        </div>
+        <div class="temp-display">
+          <span class="temp-value" id="meat2Temp">---</span>
+          <span class="temp-unit">&deg;F</span>
+        </div>
+        <div class="setpoint-display">
+          <span class="setpoint-label">Target:</span>
+          <span class="setpoint-value" id="meat2Target">---</span>
+          <span class="temp-unit">&deg;F</span>
+        </div>
+        <div class="predicted-done" id="meat2Prediction"></div>
+      </div>
+    </section>
+
+    <!-- Output Indicators -->
+    <section class="output-indicators">
+      <div class="card indicator-card">
+        <div class="indicator-row">
+          <div class="indicator">
+            <span class="indicator-label">Fan</span>
+            <div class="indicator-bar-track">
+              <div class="indicator-bar fan-bar" id="fanBar" style="width: 0%"></div>
+            </div>
+            <span class="indicator-value" id="fanValue">0%</span>
+          </div>
+          <div class="indicator">
+            <span class="indicator-label">Damper</span>
+            <div class="indicator-bar-track">
+              <div class="indicator-bar damper-bar" id="damperBar" style="width: 0%"></div>
+            </div>
+            <span class="indicator-value" id="damperValue">0%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cook Timer -->
+    <section class="timer-section">
+      <div class="card timer-card">
+        <span class="timer-label">Cook Time</span>
+        <span class="timer-value" id="cookTimer">00:00:00</span>
+      </div>
+    </section>
+
+    <!-- Chart -->
+    <section class="chart-section">
+      <div class="card chart-card">
+        <div class="chart-header">
+          <h2 class="chart-title">Temperature History</h2>
+        </div>
+        <div id="chartContainer" class="chart-container"></div>
+      </div>
+    </section>
+
+    <!-- Controls Panel -->
+    <section class="controls-section">
+      <div class="card controls-card">
+        <h2 class="controls-title">Controls</h2>
+        <div class="control-group">
+          <label class="control-label" for="pitSpInput">Pit Setpoint (&deg;F)</label>
+          <div class="control-input-row">
+            <button class="btn btn-adjust" id="pitSpDown" aria-label="Decrease setpoint by 5">-5</button>
+            <input type="number" class="control-input" id="pitSpInput" min="100" max="500" step="5" value="225">
+            <button class="btn btn-adjust" id="pitSpUp" aria-label="Increase setpoint by 5">+5</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="meat1TargetInput">Meat 1 Target (&deg;F)</label>
+          <div class="control-input-row">
+            <input type="number" class="control-input wide" id="meat1TargetInput" min="100" max="212" step="1" placeholder="e.g. 203">
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="meat2TargetInput">Meat 2 Target (&deg;F)</label>
+          <div class="control-input-row">
+            <input type="number" class="control-input wide" id="meat2TargetInput" min="100" max="212" step="1" placeholder="e.g. 195">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Session Controls -->
+    <section class="session-section">
+      <div class="card session-card">
+        <h2 class="controls-title">Session</h2>
+        <div class="session-buttons">
+          <button class="btn btn-primary" id="btnNewSession">New Session</button>
+          <button class="btn btn-secondary" id="btnDownloadCSV">Download CSV</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+  <script src="/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(function(err) {
+        console.warn('Service worker registration failed:', err);
+      });
+    }
+  </script>
+</body>
+</html>
