@@ -4,6 +4,7 @@
 
 #include <lvgl.h>
 #include <stdio.h>
+#include <cstring>
 
 // --------------------------------------------------------------------------
 // Color constants
