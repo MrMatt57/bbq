@@ -12,8 +12,6 @@
   var CHART_WINDOW_SEC = 2 * 60 * 60; // 2 hours visible window
   var PREDICTION_WINDOW_SEC = 30 * 60; // 30 min of history for regression
   var MIN_PREDICTION_POINTS = 10; // ~5 min at 30s interval
-  var COOK_TIMER_THRESHOLD_F = 5; // within 5F of setpoint
-
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
@@ -32,7 +30,6 @@
 
   var cookTimerStart = null;
   var cookTimerInterval = null;
-  var pitReachedSetpoint = false;
 
   var debounceTimers = {};
 
@@ -57,6 +54,7 @@
     dom.damperBar = document.getElementById('damperBar');
     dom.damperValue = document.getElementById('damperValue');
     dom.cookTimer = document.getElementById('cookTimer');
+    dom.cookEstimate = document.getElementById('cookEstimate');
     dom.chartContainer = document.getElementById('chartContainer');
     dom.pitSpInput = document.getElementById('pitSpInput');
     dom.pitSpDown = document.getElementById('pitSpDown');
@@ -230,40 +228,51 @@
   // Cook Timer
   // ---------------------------------------------------------------------------
   function updateCookTimer(msg) {
-    if (msg.pit === null || msg.pit === undefined || msg.pit === -1) return;
-
-    // Check if pit is within threshold of setpoint
-    if (!pitReachedSetpoint && Math.abs(msg.pit - pitSetpoint) <= COOK_TIMER_THRESHOLD_F) {
-      pitReachedSetpoint = true;
-      if (!cookTimerStart) {
-        cookTimerStart = Date.now();
-        localStorage.setItem('bbq_cook_timer_start', cookTimerStart.toString());
-      }
+    if (cookTimerStart) return; // already started
+    var meat1Valid = msg.meat1 !== null && msg.meat1 !== undefined && msg.meat1 !== -1;
+    var meat2Valid = msg.meat2 !== null && msg.meat2 !== undefined && msg.meat2 !== -1;
+    if (meat1Valid || meat2Valid) {
+      cookTimerStart = Date.now();
+      localStorage.setItem('bbq_cook_timer_start', cookTimerStart.toString());
     }
   }
 
   function tickCookTimer() {
     if (!cookTimerStart) {
       dom.cookTimer.textContent = '00:00:00';
+      dom.cookEstimate.textContent = 'Est. --:--:--';
       return;
     }
     var elapsed = (Date.now() - cookTimerStart) / 1000;
     dom.cookTimer.textContent = formatTime(elapsed);
+
+    // Estimated total cook time = max predicted done time - cook start
+    var est1 = predictDoneTime(2, meat1Target);
+    var est2 = predictDoneTime(3, meat2Target);
+    var maxDone = null;
+    if (est1) maxDone = est1.doneTime;
+    if (est2 && (!maxDone || est2.doneTime > maxDone)) maxDone = est2.doneTime;
+
+    if (maxDone) {
+      var totalSec = maxDone - cookTimerStart / 1000;
+      dom.cookEstimate.textContent = 'Est. ' + formatTime(totalSec);
+    } else {
+      dom.cookEstimate.textContent = 'Est. --:--:--';
+    }
   }
 
   function restoreCookTimer() {
     var stored = localStorage.getItem('bbq_cook_timer_start');
     if (stored) {
       cookTimerStart = parseInt(stored, 10);
-      pitReachedSetpoint = true;
     }
   }
 
   function resetCookTimer() {
     cookTimerStart = null;
-    pitReachedSetpoint = false;
     localStorage.removeItem('bbq_cook_timer_start');
     dom.cookTimer.textContent = '00:00:00';
+    dom.cookEstimate.textContent = 'Est. --:--:--';
   }
 
   // ---------------------------------------------------------------------------
