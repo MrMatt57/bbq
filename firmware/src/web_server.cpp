@@ -14,7 +14,7 @@
 #include "error_manager.h"
 #endif
 
-WebServer::WebServer()
+BBQWebServer::BBQWebServer()
     :
 #ifndef NATIVE_BUILD
       _server(nullptr)
@@ -38,7 +38,7 @@ WebServer::WebServer()
 {
 }
 
-void WebServer::begin() {
+void BBQWebServer::begin() {
 #ifndef NATIVE_BUILD
     _server = new AsyncWebServer(WEB_PORT);
     _ws = new AsyncWebSocket(WS_PATH);
@@ -66,7 +66,7 @@ void WebServer::begin() {
 #endif
 }
 
-void WebServer::update() {
+void BBQWebServer::update() {
 #ifndef NATIVE_BUILD
     unsigned long now = millis();
 
@@ -87,7 +87,7 @@ void WebServer::update() {
 #endif
 }
 
-void WebServer::setModules(TempManager* temp, PidController* pid, FanController* fan,
+void BBQWebServer::setModules(TempManager* temp, PidController* pid, FanController* fan,
                             ServoController* servo, ConfigManager* config, CookSession* session,
                             AlarmManager* alarm, ErrorManager* error) {
     _temp   = temp;
@@ -100,7 +100,7 @@ void WebServer::setModules(TempManager* temp, PidController* pid, FanController*
     _error  = error;
 }
 
-void WebServer::broadcastNow() {
+void BBQWebServer::broadcastNow() {
 #ifndef NATIVE_BUILD
     if (_ws && _ws->count() > 0) {
         String msg = buildDataMessage();
@@ -109,14 +109,14 @@ void WebServer::broadcastNow() {
 #endif
 }
 
-uint8_t WebServer::getClientCount() const {
+uint8_t BBQWebServer::getClientCount() const {
 #ifndef NATIVE_BUILD
     if (_ws) return _ws->count();
 #endif
     return 0;
 }
 
-String WebServer::buildDataMessage() {
+String BBQWebServer::buildDataMessage() {
     String json;
     json.reserve(256);
 
@@ -188,7 +188,7 @@ String WebServer::buildDataMessage() {
     return json;
 }
 
-void WebServer::handleWebSocketMessage(uint8_t clientId, const char* data, size_t len) {
+void BBQWebServer::handleWebSocketMessage(uint8_t clientId, const char* data, size_t len) {
 #ifndef NATIVE_BUILD
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, data, len);
@@ -246,7 +246,7 @@ void WebServer::handleWebSocketMessage(uint8_t clientId, const char* data, size_
 #endif
 }
 
-void WebServer::onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
+void BBQWebServer::onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                            AwsEventType type, void* arg, uint8_t* data, size_t len) {
 #ifndef NATIVE_BUILD
     switch (type) {

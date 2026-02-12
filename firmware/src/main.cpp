@@ -26,7 +26,7 @@ CookSession     cookSession;
 AlarmManager    alarmManager;
 ErrorManager    errorManager;
 WifiManager     wifiManager;
-WebServer       webServer;
+BBQWebServer    webServer;
 OtaManager      otaManager;
 
 // --- Control state ---
@@ -125,8 +125,8 @@ void setup() {
                          &servoController, &configManager, &cookSession,
                          &alarmManager, &errorManager);
 
-    // 11. Initialize OTA updates
-    otaManager.begin();
+    // 11. Initialize OTA updates (needs the AsyncWebServer to register /update route)
+    otaManager.begin(webServer.getAsyncServer());
 
     // 12. Recover any existing cook session from flash
     cookSession.begin();

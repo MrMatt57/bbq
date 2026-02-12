@@ -25,9 +25,14 @@ typedef void (*SetpointCallback)(float setpoint);
 typedef void (*AlarmCallback)(const char* probe, float target);
 typedef void (*SessionCallback)(const char* action, const char* format);
 
-class WebServer {
+class BBQWebServer {
 public:
-    WebServer();
+    BBQWebServer();
+
+    // Get the underlying AsyncWebServer pointer (e.g. for OTA registration)
+#ifndef NATIVE_BUILD
+    AsyncWebServer* getAsyncServer() const { return _server; }
+#endif
 
     // Initialize HTTP server and WebSocket. Call once from setup().
     void begin();
