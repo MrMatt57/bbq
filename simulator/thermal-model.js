@@ -142,14 +142,14 @@ class ThermalModel {
    */
   _computePID(dt) {
     const Kp = 4.0;
-    const Ki = 0.015;
+    const Ki = 0.04;
     const Kd = 3.0;
 
     const error = this.setpoint - this.pitTemp;
 
-    // Integral with anti-windup
+    // Integral with anti-windup (generous clamp so integral can eliminate steady-state error)
     this.pidIntegral += error * dt;
-    this.pidIntegral = Math.max(-500, Math.min(500, this.pidIntegral));
+    this.pidIntegral = Math.max(-2000, Math.min(2000, this.pidIntegral));
 
     // Derivative
     const derivative = dt > 0 ? (error - this.pidPrevError) / dt : 0;
@@ -171,35 +171,28 @@ class ThermalModel {
   _updatePitTemp(dt) {
     const PIT_TAU = 300; // thermal time constant in seconds
 
-    // Effective heating power: fire energy * airflow factor
-    const airflow = (this.fanPercent / 100) * (this.damperPercent / 100);
-    // At zero airflow the fire still provides some heat (natural draft)
-    const effectiveAirflow = 0.15 + 0.85 * airflow;
-    const heatPower = this.fireEnergy * effectiveAirflow;
-
-    // Target pit temp based on fire output (fire at 100% with full air can reach ~400F)
-    const maxFireTemp = 400;
-    const fireDrivenTarget = this.ambientTemp + (maxFireTemp - this.ambientTemp) * heatPower;
-
-    // The pit seeks whichever is lower: the fire-driven temp or the setpoint
-    // (the PID will throttle airflow to hold setpoint)
-    let targetTemp = fireDrivenTarget;
-
     // Lid open: rapid heat loss
     if (this.lidOpen) {
       if (!this.lidDropApplied) {
         this.preLidPitTemp = this.pitTemp;
         this.lidDropApplied = true;
       }
-      // Pit drops toward ambient quickly when lid is open
-      targetTemp = this.ambientTemp + 20;
+      const targetTemp = this.ambientTemp + 20;
       const lidTau = 60; // fast heat loss with lid open
       const alpha = 1 - Math.exp(-dt / lidTau);
       this.pitTemp += (targetTemp - this.pitTemp) * alpha;
       return;
     }
 
-    // Normal exponential approach to fire-driven target
+    // Fire limits the max achievable pit temperature
+    const maxFireTemp = 400;
+    const maxAchievable = this.ambientTemp + (maxFireTemp - this.ambientTemp) * this.fireEnergy;
+
+    // Pit approaches the setpoint directly, capped by what the fire can achieve.
+    // The PID still runs separately to produce realistic fan/damper display values.
+    const targetTemp = Math.min(this.setpoint, maxAchievable);
+
+    // Normal exponential approach to target
     const alpha = 1 - Math.exp(-dt / PIT_TAU);
     this.pitTemp += (targetTemp - this.pitTemp) * alpha;
 
@@ -207,7 +200,7 @@ class ThermalModel {
     if (!this.hasReachedSetpoint && this.pitTemp >= this.setpoint * 0.95) {
       this.hasReachedSetpoint = true;
       // Inject some overshoot energy
-      this.overshootRemaining = (this.setpoint - this.ambientTemp) * 0.08;
+      this.overshootRemaining = (this.setpoint - this.ambientTemp) * 0.05;
     }
     if (this.overshootRemaining > 0) {
       const overshootDecay = 1 - Math.exp(-dt / 180);
