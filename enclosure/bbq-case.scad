@@ -1,5 +1,5 @@
 // ============================================================
-// BBQ Temperature Controller Enclosure
+// Pit Claw Temperature Controller Enclosure
 // Parametric design — 3 printable parts
 // Open in OpenSCAD, set 'part' variable, render, export STL
 // ============================================================

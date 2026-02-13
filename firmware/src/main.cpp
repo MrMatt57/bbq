@@ -80,7 +80,7 @@ void setup() {
 
     Serial.println();
     Serial.println("========================================");
-    Serial.printf("  BBQ Controller v%s\n", FIRMWARE_VERSION);
+    Serial.printf("  Pit Claw v%s\n", FIRMWARE_VERSION);
     Serial.println("  Board: WT32-SC01 Plus (ESP32-S3)");
     Serial.println("========================================");
     Serial.println();

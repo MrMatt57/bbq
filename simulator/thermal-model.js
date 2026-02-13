@@ -1,5 +1,5 @@
 // Simplified charcoal smoker physics simulation.
-// Produces realistic-looking temperature curves for BBQ cooking scenarios
+// Produces realistic-looking temperature curves for BBQ cooking simulation
 // using thermal mass, Newton's law of cooling/heating, and event injection.
 
 class ThermalModel {

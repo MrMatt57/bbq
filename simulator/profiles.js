@@ -1,4 +1,4 @@
-// Pre-built cook profiles for the BBQ simulator.
+// Pre-built cook profiles for the Pit Claw simulator.
 // Each profile defines initial conditions and scheduled events that
 // produce realistic temperature curves for different cooking scenarios.
 

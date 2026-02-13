@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Sets up the BBQ Controller development environment on Windows.
+    Sets up the Pit Claw development environment on Windows.
 
 .DESCRIPTION
     Installs all required tools and dependencies for firmware development,
@@ -53,7 +53,7 @@ function Refresh-Path {
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor White
-Write-Host "  BBQ Controller - Dev Environment Setup" -ForegroundColor White
+Write-Host "  Pit Claw - Dev Environment Setup" -ForegroundColor White
 Write-Host "============================================" -ForegroundColor White
 
 # Check winget
