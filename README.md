@@ -1,6 +1,6 @@
 # Pit Claw
 
-[![CI](https://github.com/MrMatt57/pit-claw/actions/workflows/ci.yml/badge.svg)](https://github.com/MrMatt57/pit-claw/actions/workflows/ci.yml)
+[![CI](https://github.com/MrMatt57/pitclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/MrMatt57/pitclaw/actions/workflows/ci.yml)
 
 Open-source BBQ temperature monitor and controller. Uses an ESP32-S3 with a 3.5" touchscreen to maintain precise smoker temperature via PID-controlled fan and optional servo damper. Reads Thermoworks-compatible thermistor probes. Includes a web interface (PWA) for remote monitoring from any phone or computer on Wi-Fi. Touchscreen works fully offline.
 
@@ -122,8 +122,8 @@ One script installs everything you need — Git, Python, Node.js, PlatformIO CLI
 
 ```powershell
 # Clone the repo
-git clone https://github.com/MrMatt57/pit-claw.git
-cd pit-claw
+git clone https://github.com/MrMatt57/pitclaw.git
+cd pitclaw
 
 # Run from an elevated (Admin) PowerShell
 powershell -ExecutionPolicy Bypass -File scripts\setup-dev.ps1
