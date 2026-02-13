@@ -1,12 +1,13 @@
-// BBQ Controller - Service Worker
+// Pit Claw - Service Worker
 // Cache-first for app shell, network-first for data/WebSocket
 
-var CACHE_VERSION = 'bbq-v1';
+var CACHE_VERSION = 'pitclaw-v1';
 var APP_SHELL = [
   '/',
   '/index.html',
   '/app.js',
   '/style.css',
+  '/favicon.svg',
   'https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js',
   'https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css'
 ];
@@ -35,6 +36,24 @@ self.addEventListener('activate', function (event) {
       );
     }).then(function () {
       return self.clients.claim();
+    })
+  );
+});
+
+// Notification click: focus or open the app
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        if (clientList[i].visibilityState === 'visible') {
+          return clientList[i].focus();
+        }
+      }
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('/');
     })
   );
 });
