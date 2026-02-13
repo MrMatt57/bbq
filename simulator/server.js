@@ -189,6 +189,8 @@ function handleMessage(ws, raw) {
         sessionStartTs = Math.floor(Date.now() / 1000);
         currentSetpoint = profile.targetPitTemp;
         try { fs.unlinkSync(SESSION_FILE); } catch (e) {}
+        // Notify all clients that the session has been reset
+        broadcast({ type: 'session', action: 'reset', sp: currentSetpoint });
       } else if (msg.action === 'download' && msg.format === 'csv') {
         const csv = generateCSV();
         ws.send(JSON.stringify({

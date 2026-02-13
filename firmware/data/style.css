@@ -502,6 +502,26 @@ body {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.btn-toggle {
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 44px;
+}
+
+.btn-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--accent);
+}
+
+.prefs-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
 .btn-primary {
   background: var(--accent);
   color: #000;

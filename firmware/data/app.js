@@ -12,6 +12,7 @@
   var CHART_WINDOW_SEC = 2 * 60 * 60; // 2 hours visible window
   var PREDICTION_WINDOW_SEC = 30 * 60; // 30 min of history for regression
   var MIN_PREDICTION_POINTS = 10; // ~5 min at 30s interval
+
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
@@ -24,9 +25,12 @@
   var chartData = [[], [], [], [], [], [], []]; // [timestamps, pit, meat1, meat2, fan, damper, setpoint]
   var predictionData = { meat1: null, meat2: null }; // { times: [], temps: [] } for each
 
-  var pitSetpoint = 225;
-  var meat1Target = null;
-  var meat2Target = null;
+  var pitSetpoint = 225;   // always stored in °F
+  var meat1Target = null;  // always stored in °F
+  var meat2Target = null;  // always stored in °F
+
+  var currentUnits = 'F';        // 'F' or 'C' — display only
+  var currentTimeFormat = '12h'; // '12h' or '24h'
 
   var cookTimerStart = null;  // server timestamp (seconds) when cook started
   var cookTimerInterval = null;
@@ -64,6 +68,8 @@
     dom.meat2TargetInput = document.getElementById('meat2TargetInput');
     dom.btnNewSession = document.getElementById('btnNewSession');
     dom.btnDownloadCSV = document.getElementById('btnDownloadCSV');
+    dom.btnToggleUnits = document.getElementById('btnToggleUnits');
+    dom.btnToggleTime = document.getElementById('btnToggleTime');
   }
 
   // ---------------------------------------------------------------------------
@@ -88,16 +94,87 @@
   function formatClockTime(date) {
     var h = date.getHours();
     var m = date.getMinutes();
+    if (currentTimeFormat === '24h') {
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
     var ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12;
     if (h === 0) h = 12;
     return h + ':' + String(m).padStart(2, '0') + ' ' + ampm;
   }
 
+  // ---------------------------------------------------------------------------
+  // Temperature Conversion
+  // ---------------------------------------------------------------------------
+  function fToC(f) { return (f - 32) * 5 / 9; }
+  function cToF(c) { return c * 9 / 5 + 32; }
+
+  function displayTemp(fValue) {
+    if (fValue === null || fValue === undefined) return null;
+    if (fValue === -1 || fValue === 'ERR') return fValue;
+    return currentUnits === 'C' ? Math.round(fToC(fValue)) : Math.round(fValue);
+  }
+
+  function displayTempFromInput(displayValue) {
+    if (currentUnits === 'C') return Math.round(cToF(displayValue));
+    return displayValue;
+  }
+
+  function unitLabel() { return '\u00B0' + currentUnits; }
+
   function formatTemp(value) {
     if (value === null || value === undefined) return '---';
     if (value === -1 || value === 'ERR') return 'ERR';
-    return Math.round(value).toString();
+    return displayTemp(value).toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Preferences (localStorage)
+  // ---------------------------------------------------------------------------
+  function detectDefaults() {
+    var units = 'C';
+    var timeFormat = '24h';
+
+    // US and a few other locales use Fahrenheit
+    var lang = navigator.language || '';
+    if (/^en-(US|BS|KY|LR|PW|FM|MH)/i.test(lang)) {
+      units = 'F';
+    }
+
+    // Detect 12h/24h from OS settings via Intl
+    try {
+      var hourCycle = new Intl.DateTimeFormat(undefined, { hour: 'numeric' })
+        .resolvedOptions().hourCycle;
+      timeFormat = (hourCycle === 'h11' || hourCycle === 'h12') ? '12h' : '24h';
+    } catch (e) {
+      if (units === 'F') timeFormat = '12h';
+    }
+
+    return { units: units, timeFormat: timeFormat };
+  }
+
+  function loadPrefs() {
+    try {
+      var stored = localStorage.getItem('bbq_prefs');
+      if (stored) {
+        var prefs = JSON.parse(stored);
+        currentUnits = prefs.units === 'C' ? 'C' : 'F';
+        currentTimeFormat = prefs.timeFormat === '24h' ? '24h' : '12h';
+        return;
+      }
+    } catch (e) { /* fall through to defaults */ }
+    var defaults = detectDefaults();
+    currentUnits = defaults.units;
+    currentTimeFormat = defaults.timeFormat;
+  }
+
+  function savePrefs() {
+    try {
+      localStorage.setItem('bbq_prefs', JSON.stringify({
+        units: currentUnits,
+        timeFormat: currentTimeFormat
+      }));
+    } catch (e) { /* silently fail */ }
   }
 
   // ---------------------------------------------------------------------------
@@ -190,28 +267,54 @@
       updatePredictions();
     } else if (msg.type === 'history') {
       loadHistory(msg);
+    } else if (msg.type === 'session' && msg.action === 'reset') {
+      handleSessionReset(msg);
+    }
+  }
+
+  function handleSessionReset(msg) {
+    // Reset cook timer and chart state once the server confirms the reset.
+    // Doing this here (instead of optimistically on button click) avoids a
+    // race where stale data messages from the old session sneak in between
+    // the local clear and the server-side reset, leaving cookTimerStart
+    // pointing at an old-session timestamp and causing negative elapsed time.
+    resetCookTimer();
+    latestServerTs = null;
+
+    for (var i = 0; i < chartData.length; i++) {
+      chartData[i] = [];
+    }
+    if (chart) {
+      chart.setData(chartData);
+    }
+
+    // Restore setpoint from the server's reset defaults
+    if (msg.sp !== undefined) {
+      pitSetpoint = msg.sp;
+      dom.pitSetpoint.textContent = displayTemp(msg.sp);
+      dom.pitSpInput.value = displayTemp(msg.sp);
     }
   }
 
   function loadHistory(msg) {
-    // Restore alarm targets and setpoint
+    // Restore alarm targets and setpoint (server values are always °F)
     if (msg.sp !== undefined) {
       pitSetpoint = msg.sp;
-      dom.pitSetpoint.textContent = msg.sp;
-      dom.pitSpInput.value = msg.sp;
+      dom.pitSetpoint.textContent = displayTemp(msg.sp);
+      dom.pitSpInput.value = displayTemp(msg.sp);
     }
     if (msg.meat1Target !== undefined && msg.meat1Target !== null) {
       meat1Target = msg.meat1Target;
-      dom.meat1Target.textContent = msg.meat1Target;
-      dom.meat1TargetInput.value = msg.meat1Target;
+      dom.meat1Target.textContent = displayTemp(msg.meat1Target);
+      dom.meat1TargetInput.value = displayTemp(msg.meat1Target);
     }
     if (msg.meat2Target !== undefined && msg.meat2Target !== null) {
       meat2Target = msg.meat2Target;
-      dom.meat2Target.textContent = msg.meat2Target;
-      dom.meat2TargetInput.value = msg.meat2Target;
+      dom.meat2Target.textContent = displayTemp(msg.meat2Target);
+      dom.meat2TargetInput.value = displayTemp(msg.meat2Target);
     }
 
-    // Populate chart data from history
+    // Populate chart data from history (stored as °F)
     if (!msg.data || !msg.data.length) return;
 
     // Reset chart arrays
@@ -249,26 +352,27 @@
   }
 
   function updateTemperatures(msg) {
+    // Temperature values from server are always °F; formatTemp converts for display
     dom.pitTemp.textContent = formatTemp(msg.pit);
     dom.meat1Temp.textContent = formatTemp(msg.meat1);
     dom.meat2Temp.textContent = formatTemp(msg.meat2);
 
     if (msg.sp !== undefined) {
       pitSetpoint = msg.sp;
-      dom.pitSetpoint.textContent = msg.sp;
-      dom.pitSpInput.value = msg.sp;
+      dom.pitSetpoint.textContent = displayTemp(msg.sp);
+      dom.pitSpInput.value = displayTemp(msg.sp);
     }
 
     if (msg.meat1Target !== undefined && msg.meat1Target !== null) {
       meat1Target = msg.meat1Target;
-      dom.meat1Target.textContent = msg.meat1Target;
-      dom.meat1TargetInput.value = msg.meat1Target;
+      dom.meat1Target.textContent = displayTemp(msg.meat1Target);
+      dom.meat1TargetInput.value = displayTemp(msg.meat1Target);
     }
 
     if (msg.meat2Target !== undefined && msg.meat2Target !== null) {
       meat2Target = msg.meat2Target;
-      dom.meat2Target.textContent = msg.meat2Target;
-      dom.meat2TargetInput.value = msg.meat2Target;
+      dom.meat2Target.textContent = displayTemp(msg.meat2Target);
+      dom.meat2TargetInput.value = displayTemp(msg.meat2Target);
     }
   }
 
@@ -336,18 +440,12 @@
   // ---------------------------------------------------------------------------
   // Chart
   // ---------------------------------------------------------------------------
-  function initChart() {
-    if (typeof uPlot === 'undefined') {
-      console.warn('uPlot not loaded, retrying in 500ms');
-      setTimeout(initChart, 500);
-      return;
-    }
-
+  function buildChartOpts() {
     var container = dom.chartContainer;
     var width = container.clientWidth;
     var height = Math.max(250, Math.min(400, window.innerHeight * 0.35));
 
-    var opts = {
+    return {
       width: width,
       height: height,
       tzDate: function (ts) { return new Date(ts * 1000); },
@@ -361,32 +459,32 @@
       },
       axes: [
         {
-          // X axis
+          // X axis — uses formatClockTime for consistent 12h/24h
           stroke: '#666',
           grid: { stroke: 'rgba(255,255,255,0.06)' },
           ticks: { stroke: 'rgba(255,255,255,0.06)' },
           values: function (u, vals) {
             return vals.map(function (v) {
-              var d = new Date(v * 1000);
-              var h = d.getHours();
-              var m = d.getMinutes();
-              return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+              return formatClockTime(new Date(v * 1000));
             });
           }
         },
         {
-          // Left Y axis - Temperature
+          // Left Y axis — Temperature (data stays °F, labels convert)
           scale: 'temp',
-          label: 'Temperature (F)',
+          label: 'Temperature (' + unitLabel() + ')',
           stroke: '#e0e0e0',
           grid: { stroke: 'rgba(255,255,255,0.06)' },
           ticks: { stroke: 'rgba(255,255,255,0.06)' },
           values: function (u, vals) {
-            return vals.map(function (v) { return v + '\u00B0'; });
+            return vals.map(function (v) {
+              var display = currentUnits === 'C' ? Math.round(fToC(v)) : v;
+              return display + '\u00B0';
+            });
           }
         },
         {
-          // Right Y axis - Percent
+          // Right Y axis — Percent
           scale: 'pct',
           side: 1,
           label: 'Output %',
@@ -404,45 +502,71 @@
           label: 'Pit',
           scale: 'temp',
           stroke: '#f59e0b',
-          width: 2
+          width: 2,
+          value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         },
         {
           label: 'Meat 1',
           scale: 'temp',
           stroke: '#ef4444',
-          width: 2
+          width: 2,
+          value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         },
         {
           label: 'Meat 2',
           scale: 'temp',
           stroke: '#3b82f6',
-          width: 2
+          width: 2,
+          value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         },
         {
           label: 'Fan %',
           scale: 'pct',
           stroke: '#10b981',
           width: 1.5,
-          dash: [6, 3]
+          dash: [6, 3],
+          value: function (u, v) { return v == null ? '--' : Math.round(v) + '%'; }
         },
         {
           label: 'Damper %',
           scale: 'pct',
           stroke: '#8b5cf6',
           width: 1.5,
-          dash: [6, 3]
+          dash: [6, 3],
+          value: function (u, v) { return v == null ? '--' : Math.round(v) + '%'; }
         },
         {
           label: 'Setpoint',
           scale: 'temp',
           stroke: '#f59e0b',
           width: 1.5,
-          dash: [8, 4]
+          dash: [8, 4],
+          value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         }
       ]
     };
+  }
 
-    chart = new uPlot(opts, chartData, container);
+  function initChart() {
+    if (typeof uPlot === 'undefined') {
+      console.warn('uPlot not loaded, retrying in 500ms');
+      setTimeout(initChart, 500);
+      return;
+    }
+
+    chart = new uPlot(buildChartOpts(), chartData, dom.chartContainer);
+  }
+
+  function recreateChart() {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+    dom.chartContainer.innerHTML = '';
+    initChart();
+    if (chartData[0].length > 0 && chart) {
+      chart.setData(buildChartDataWithPrediction());
+    }
   }
 
   function appendChartData(msg) {
@@ -576,50 +700,160 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Toggle Mechanics
+  // ---------------------------------------------------------------------------
+  function toggleUnits() {
+    currentUnits = currentUnits === 'F' ? 'C' : 'F';
+    savePrefs();
+    updateToggleButtons();
+    updateUnitLabels();
+    refreshAllDisplayValues();
+    recreateChart();
+  }
+
+  function toggleTimeFormat() {
+    currentTimeFormat = currentTimeFormat === '12h' ? '24h' : '12h';
+    savePrefs();
+    updateToggleButtons();
+    recreateChart();
+    updatePredictions();
+  }
+
+  function updateToggleButtons() {
+    dom.btnToggleUnits.textContent = '\u00B0' + currentUnits;
+    dom.btnToggleTime.textContent = currentTimeFormat;
+  }
+
+  function updateUnitLabels() {
+    var label = unitLabel();
+
+    // Update all unit spans in temperature cards
+    var unitSpans = document.querySelectorAll('.temp-unit');
+    for (var i = 0; i < unitSpans.length; i++) {
+      unitSpans[i].textContent = label;
+    }
+
+    // Update control labels
+    var pitLabel = document.querySelector('label[for="pitSpInput"]');
+    if (pitLabel) pitLabel.textContent = 'Pit Setpoint (' + label + ')';
+    var m1Label = document.querySelector('label[for="meat1TargetInput"]');
+    if (m1Label) m1Label.textContent = 'Meat 1 Target (' + label + ')';
+    var m2Label = document.querySelector('label[for="meat2TargetInput"]');
+    if (m2Label) m2Label.textContent = 'Meat 2 Target (' + label + ')';
+
+    // Update input constraints and +/- button text
+    if (currentUnits === 'C') {
+      dom.pitSpInput.min = 38;
+      dom.pitSpInput.max = 260;
+      dom.pitSpInput.step = 3;
+      dom.pitSpDown.textContent = '-3';
+      dom.pitSpDown.setAttribute('aria-label', 'Decrease setpoint by 3');
+      dom.pitSpUp.textContent = '+3';
+      dom.pitSpUp.setAttribute('aria-label', 'Increase setpoint by 3');
+      dom.meat1TargetInput.min = 38;
+      dom.meat1TargetInput.max = 100;
+      dom.meat1TargetInput.placeholder = 'e.g. 95';
+      dom.meat2TargetInput.min = 38;
+      dom.meat2TargetInput.max = 100;
+      dom.meat2TargetInput.placeholder = 'e.g. 91';
+    } else {
+      dom.pitSpInput.min = 100;
+      dom.pitSpInput.max = 500;
+      dom.pitSpInput.step = 5;
+      dom.pitSpDown.textContent = '-5';
+      dom.pitSpDown.setAttribute('aria-label', 'Decrease setpoint by 5');
+      dom.pitSpUp.textContent = '+5';
+      dom.pitSpUp.setAttribute('aria-label', 'Increase setpoint by 5');
+      dom.meat1TargetInput.min = 100;
+      dom.meat1TargetInput.max = 212;
+      dom.meat1TargetInput.placeholder = 'e.g. 203';
+      dom.meat2TargetInput.min = 100;
+      dom.meat2TargetInput.max = 212;
+      dom.meat2TargetInput.placeholder = 'e.g. 195';
+    }
+  }
+
+  function refreshAllDisplayValues() {
+    // Re-display all temps from internal °F state
+    var len = chartData[0].length;
+    if (len > 0) {
+      dom.pitTemp.textContent = formatTemp(chartData[1][len - 1]);
+      dom.meat1Temp.textContent = formatTemp(chartData[2][len - 1]);
+      dom.meat2Temp.textContent = formatTemp(chartData[3][len - 1]);
+    }
+
+    dom.pitSetpoint.textContent = displayTemp(pitSetpoint);
+    dom.pitSpInput.value = displayTemp(pitSetpoint);
+
+    if (meat1Target !== null) {
+      dom.meat1Target.textContent = displayTemp(meat1Target);
+      dom.meat1TargetInput.value = displayTemp(meat1Target);
+    }
+    if (meat2Target !== null) {
+      dom.meat2Target.textContent = displayTemp(meat2Target);
+      dom.meat2TargetInput.value = displayTemp(meat2Target);
+    }
+
+    updatePredictions();
+  }
+
+  // ---------------------------------------------------------------------------
   // Controls
   // ---------------------------------------------------------------------------
   function initControls() {
-    // Pit setpoint +/- buttons
+    // Pit setpoint +/- buttons (step 5°F or 3°C)
     dom.pitSpDown.addEventListener('click', function () {
-      var val = parseInt(dom.pitSpInput.value, 10) || 225;
-      val = Math.max(100, val - 5);
-      dom.pitSpInput.value = val;
-      sendSetpoint(val);
+      var displayVal = parseInt(dom.pitSpInput.value, 10) || displayTemp(225);
+      var step = currentUnits === 'C' ? 3 : 5;
+      var min = currentUnits === 'C' ? 38 : 100;
+      displayVal = Math.max(min, displayVal - step);
+      dom.pitSpInput.value = displayVal;
+      sendSetpoint(displayTempFromInput(displayVal));
     });
 
     dom.pitSpUp.addEventListener('click', function () {
-      var val = parseInt(dom.pitSpInput.value, 10) || 225;
-      val = Math.min(500, val + 5);
-      dom.pitSpInput.value = val;
-      sendSetpoint(val);
+      var displayVal = parseInt(dom.pitSpInput.value, 10) || displayTemp(225);
+      var step = currentUnits === 'C' ? 3 : 5;
+      var max = currentUnits === 'C' ? 260 : 500;
+      displayVal = Math.min(max, displayVal + step);
+      dom.pitSpInput.value = displayVal;
+      sendSetpoint(displayTempFromInput(displayVal));
     });
 
     dom.pitSpInput.addEventListener('change', function () {
-      var val = parseInt(this.value, 10);
-      if (!isNaN(val) && val >= 100 && val <= 500) {
-        sendSetpoint(val);
+      var displayVal = parseInt(this.value, 10);
+      var min = currentUnits === 'C' ? 38 : 100;
+      var max = currentUnits === 'C' ? 260 : 500;
+      if (!isNaN(displayVal) && displayVal >= min && displayVal <= max) {
+        sendSetpoint(displayTempFromInput(displayVal));
       }
     });
 
-    // Meat targets
+    // Meat targets (user enters display unit, convert to °F for server)
     dom.meat1TargetInput.addEventListener('change', function () {
-      var val = parseInt(this.value, 10);
-      if (!isNaN(val) && val >= 100 && val <= 212) {
-        meat1Target = val;
-        dom.meat1Target.textContent = val;
+      var displayVal = parseInt(this.value, 10);
+      var min = currentUnits === 'C' ? 38 : 100;
+      var max = currentUnits === 'C' ? 100 : 212;
+      if (!isNaN(displayVal) && displayVal >= min && displayVal <= max) {
+        var fVal = displayTempFromInput(displayVal);
+        meat1Target = fVal;
+        dom.meat1Target.textContent = displayVal;
         debounce('meat1Target', function () {
-          wsSend({ type: 'alarm', meat1Target: val });
+          wsSend({ type: 'alarm', meat1Target: fVal });
         });
       }
     });
 
     dom.meat2TargetInput.addEventListener('change', function () {
-      var val = parseInt(this.value, 10);
-      if (!isNaN(val) && val >= 100 && val <= 212) {
-        meat2Target = val;
-        dom.meat2Target.textContent = val;
+      var displayVal = parseInt(this.value, 10);
+      var min = currentUnits === 'C' ? 38 : 100;
+      var max = currentUnits === 'C' ? 100 : 212;
+      if (!isNaN(displayVal) && displayVal >= min && displayVal <= max) {
+        var fVal = displayTempFromInput(displayVal);
+        meat2Target = fVal;
+        dom.meat2Target.textContent = displayVal;
         debounce('meat2Target', function () {
-          wsSend({ type: 'alarm', meat2Target: val });
+          wsSend({ type: 'alarm', meat2Target: fVal });
         });
       }
     });
@@ -628,14 +862,7 @@
     dom.btnNewSession.addEventListener('click', function () {
       if (confirm('Start a new session? This will reset the cook timer and begin a new data log.')) {
         wsSend({ type: 'session', action: 'new' });
-        resetCookTimer();
-        // Clear chart data
-        for (var i = 0; i < chartData.length; i++) {
-          chartData[i] = [];
-        }
-        if (chart) {
-          chart.setData(chartData);
-        }
+        // Cleanup happens in handleSessionReset when the server confirms
       }
     });
 
@@ -645,8 +872,8 @@
   }
 
   function sendSetpoint(val) {
-    pitSetpoint = val;
-    dom.pitSetpoint.textContent = val;
+    pitSetpoint = val; // always stored as °F
+    dom.pitSetpoint.textContent = displayTemp(val);
     debounce('setpoint', function () {
       wsSend({ type: 'set', sp: val });
     });
@@ -666,10 +893,17 @@
   // ---------------------------------------------------------------------------
   function init() {
     cacheDom();
+    loadPrefs();
+    updateToggleButtons();
+    updateUnitLabels();
     restoreCookTimer();
     initControls();
     initChart();
     wsConnect();
+
+    // Toggle button listeners
+    dom.btnToggleUnits.addEventListener('click', toggleUnits);
+    dom.btnToggleTime.addEventListener('click', toggleTimeFormat);
 
     // Cook timer tick
     cookTimerInterval = setInterval(tickCookTimer, 1000);
