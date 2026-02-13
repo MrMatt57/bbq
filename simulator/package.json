@@ -1,7 +1,7 @@
 {
-  "name": "bbq-simulator",
+  "name": "pitclaw-simulator",
   "version": "1.0.0",
-  "description": "BBQ temperature controller simulator for web UI development",
+  "description": "Pit Claw temperature controller simulator for web UI development",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

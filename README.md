@@ -1,4 +1,4 @@
-# BBQ Controller
+# Pit Claw
 
 [![CI](https://github.com/MrMatt57/bbq/actions/workflows/ci.yml/badge.svg)](https://github.com/MrMatt57/bbq/actions/workflows/ci.yml)
 

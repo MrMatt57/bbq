@@ -108,7 +108,7 @@ static void create_step_welcome() {
     wiz_screens[0] = scr;
 
     lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "BBQ Controller");
+    lv_label_set_text(lbl, "Pit Claw");
     lv_obj_set_style_text_color(lbl, COLOR_ORANGE, 0);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_36, 0);
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, -40);
@@ -397,7 +397,7 @@ static void create_step_done() {
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 20);
 
     lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "Your BBQ controller is ready.");
+    lv_label_set_text(lbl, "Your Pit Claw is ready.");
     lv_obj_set_style_text_color(lbl, COLOR_TEXT_DIM, 0);
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 55);
 }

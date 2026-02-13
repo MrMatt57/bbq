@@ -1,5 +1,5 @@
 // ============================================================
-// BBQ Fan + Damper Assembly for UDS (Ugly Drum Smoker)
+// Pit Claw Fan + Damper Assembly for UDS (Ugly Drum Smoker)
 // Parametric design — 2 printable parts
 // Open in OpenSCAD, set 'part' variable, render, export STL
 // ============================================================

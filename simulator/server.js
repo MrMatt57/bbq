@@ -1,4 +1,4 @@
-// BBQ Simulator Server
+// Pit Claw Simulator Server
 // Express serves the web UI from firmware/data/, WebSocket sends simulated
 // temperature data using the same protocol as the real ESP32 firmware.
 
@@ -300,7 +300,7 @@ function startSimulation() {
 // ---------------------------------------------------------------------------
 server.listen(PORT, () => {
   console.log('');
-  console.log('=== BBQ Simulator ===');
+  console.log('=== Pit Claw Simulator ===');
   console.log(`  Port:    ${PORT}`);
   console.log(`  Profile: ${PROFILE_NAME} — ${profile.description}`);
   console.log(`  Speed:   ${SPEED}x (${SIM_DT * SPEED} simulated seconds per tick)`);

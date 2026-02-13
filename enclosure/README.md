@@ -1,6 +1,6 @@
-# BBQ Controller Enclosure & Fan Assembly
+# Pit Claw Enclosure & Fan Assembly
 
-3D-printable enclosure for the BBQ temperature controller and fan/damper assembly for UDS (Ugly Drum Smoker). All designs are parametric OpenSCAD files.
+3D-printable enclosure for the Pit Claw temperature controller and fan/damper assembly for UDS (Ugly Drum Smoker). All designs are parametric OpenSCAD files.
 
 ## Files
 
