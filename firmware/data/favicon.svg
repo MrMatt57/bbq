@@ -1,10 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <!-- Background circle with amber ring -->
   <circle cx="20" cy="20" r="19" fill="#1a1a2e" stroke="#f59e0b" stroke-width="2"/>
-  <g transform="translate(6,7)" fill="#ef4444">
-    <path d="M8 26 Q6 20 8 14 Q9 11 7 8 Q5 5 3 2 Q2 0.5 3.5 0.5 Q6 1 8 4 Q10 7 10 10 Q10 13 9 16 Q8 20 10 24Z" opacity="0.9"/>
-    <path d="M20 26 Q22 20 20 14 Q19 11 21 8 Q23 5 25 2 Q26 0.5 24.5 0.5 Q22 1 20 4 Q18 7 18 10 Q18 13 19 16 Q20 20 18 24Z" opacity="0.9"/>
-    <path d="M3.5 0.5 Q2 -1 0.5 1 Q0 3 2 3.5 Q3.5 3.5 3.5 0.5Z"/>
-    <path d="M24.5 0.5 Q26 -1 27.5 1 Q28 3 26 3.5 Q24.5 3.5 24.5 0.5Z"/>
-    <ellipse cx="14" cy="26" rx="7" ry="4" opacity="0.8"/>
+  <!-- Smoke/heat wisps rising above lobster -->
+  <g fill="none" stroke="#f59e0b" stroke-width="1.2" opacity="0.4" stroke-linecap="round">
+    <path d="M15 9 C14 7 16 5.5 15 4"/>
+    <path d="M20 8 C19 6 21 4.5 20 3"/>
+    <path d="M25 9 C24 7 26 5.5 25 4"/>
+  </g>
+  <!-- Lobster -->
+  <g stroke="#ef4444" fill="#ef4444">
+    <!-- Left arm -->
+    <line x1="15" y1="18" x2="9" y2="10" stroke-width="3" stroke-linecap="round"/>
+    <!-- Left claw pincers -->
+    <line x1="9" y1="10" x2="7" y2="6.5" stroke-width="2" stroke-linecap="round"/>
+    <line x1="9" y1="10" x2="6" y2="10.5" stroke-width="2" stroke-linecap="round"/>
+    <!-- Right arm -->
+    <line x1="25" y1="18" x2="31" y2="10" stroke-width="3" stroke-linecap="round"/>
+    <!-- Right claw pincers -->
+    <line x1="31" y1="10" x2="33" y2="6.5" stroke-width="2" stroke-linecap="round"/>
+    <line x1="31" y1="10" x2="34" y2="10.5" stroke-width="2" stroke-linecap="round"/>
+    <!-- Head / thorax -->
+    <ellipse cx="20" cy="20" rx="6" ry="4" stroke="none"/>
+    <!-- Abdomen -->
+    <rect x="16" y="23.5" width="8" height="3.5" rx="2" stroke="none"/>
+    <!-- Tail fan -->
+    <path d="M16 26.5 L13 31 L17 29 L20 32.5 L23 29 L27 31 L24 26.5Z" stroke="none"/>
+    <!-- Eyes -->
+    <circle cx="17.5" cy="19" r="1.1" fill="#1a1a2e" stroke="none"/>
+    <circle cx="22.5" cy="19" r="1.1" fill="#1a1a2e" stroke="none"/>
   </g>
 </svg>
