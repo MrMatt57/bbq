@@ -1,5 +1,5 @@
-/* BBQ Controller - style.css */
-/* Dark theme with amber/orange BBQ accents */
+/* Pit Claw - style.css */
+/* Dark theme with amber/red accents */
 
 /* -------------------------------------------------------------------------
    CSS Custom Properties
@@ -51,13 +51,14 @@ body {
 }
 
 /* -------------------------------------------------------------------------
-   Status Bar
+   Header Banner
    ------------------------------------------------------------------------- */
-.status-bar {
+.header-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  min-height: 56px;
+  padding: 12px 16px;
   background: var(--bg-card);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   position: sticky;
@@ -65,64 +66,120 @@ body {
   z-index: 100;
 }
 
-.status-left,
-.status-right {
+.header-left {
   display: flex;
   align-items: center;
-  min-width: 100px;
-}
-
-.status-right {
-  justify-content: flex-end;
-}
-
-.status-center {
+  min-width: 0;
   flex: 1;
-  text-align: center;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 0 8px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.app-logo {
+  flex-shrink: 0;
+  margin-right: 8px;
 }
 
 .app-title {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--accent);
-  letter-spacing: 0.5px;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.connection-indicator {
+.icon-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  justify-content: center;
+  padding: 8px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.conn-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--danger);
-  transition: background var(--transition);
-}
-
-.connection-indicator.connected .conn-dot {
-  background: var(--success);
-  box-shadow: 0 0 6px var(--success);
-}
-
-.connection-indicator.connected .conn-text {
-  color: var(--success);
-}
-
-.connection-indicator.disconnected .conn-dot {
-  background: var(--danger);
-}
-
-.connection-indicator.disconnected .conn-text {
-  color: var(--danger);
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
 }
 
 .wifi-icon {
   color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.wifi-icon.connected {
+  color: var(--success);
+}
+
+.wifi-icon.disconnected {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+#btnNotify {
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+#btnNotify.notify-on {
+  color: var(--accent);
+}
+
+#btnNotify.notify-denied {
+  color: var(--danger);
+  opacity: 0.5;
+}
+
+/* Header time blocks */
+.time-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.time-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.time-val {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.time-val-accent {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 /* -------------------------------------------------------------------------
@@ -148,18 +205,50 @@ body {
 }
 
 /* -------------------------------------------------------------------------
+   Output Bars (Fan / Damper) — thin full-width bars
+   ------------------------------------------------------------------------- */
+.output-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 4px;
+}
+
+.output-bar-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.output-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.fan-bar {
+  background: var(--fan-color);
+}
+
+.damper-bar {
+  background: var(--damper-color);
+}
+
+/* -------------------------------------------------------------------------
    Temperature Cards
    ------------------------------------------------------------------------- */
 .temp-cards {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
 }
 
 .temp-card {
   text-align: center;
   position: relative;
   overflow: hidden;
+  padding: 20px 16px;
 }
 
 .temp-card::before {
@@ -191,7 +280,7 @@ body {
 }
 
 .probe-label {
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -199,7 +288,7 @@ body {
 }
 
 .probe-icon {
-  font-size: 1.2rem;
+  font-size: 1.5rem;
 }
 
 .temp-display {
@@ -211,7 +300,7 @@ body {
 }
 
 .temp-value {
-  font-size: 2.8rem;
+  font-size: 3rem;
   font-weight: 700;
   line-height: 1;
   transition: color var(--transition);
@@ -236,7 +325,7 @@ body {
 }
 
 .setpoint-display {
-  font-size: 0.85rem;
+  font-size: 1.15rem;
   color: var(--text-secondary);
   display: flex;
   align-items: baseline;
@@ -255,110 +344,9 @@ body {
 
 .predicted-done {
   margin-top: 8px;
-  font-size: 0.8rem;
+  font-size: 1rem;
   color: var(--accent);
   min-height: 1.2em;
-}
-
-/* -------------------------------------------------------------------------
-   Output Indicators (Fan / Damper)
-   ------------------------------------------------------------------------- */
-.indicator-card {
-  height: 100%;
-  display: flex;
-  align-items: center;
-}
-
-.indicator-row {
-  display: flex;
-  gap: 24px;
-  width: 100%;
-}
-
-.indicator {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.indicator-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  min-width: 55px;
-}
-
-.indicator-bar-track {
-  flex: 1;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 5px;
-  overflow: hidden;
-}
-
-.indicator-bar {
-  height: 100%;
-  border-radius: 5px;
-  transition: width 0.5s ease;
-}
-
-.fan-bar {
-  background: var(--fan-color);
-}
-
-.damper-bar {
-  background: var(--damper-color);
-}
-
-.indicator-value {
-  font-size: 0.85rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  min-width: 40px;
-  text-align: right;
-  color: var(--text-primary);
-}
-
-/* -------------------------------------------------------------------------
-   Cook Timer
-   ------------------------------------------------------------------------- */
-.timer-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 16px;
-}
-
-.timer-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-}
-
-.timer-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-}
-
-.timer-separator {
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  margin: 0 4px;
-}
-
-.timer-estimate {
-  font-size: 1rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
 }
 
 /* -------------------------------------------------------------------------
@@ -402,68 +390,237 @@ body {
   padding: 2px 6px;
 }
 
-/* -------------------------------------------------------------------------
-   Controls
-   ------------------------------------------------------------------------- */
-.controls-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Chart Legend (custom layout) */
+.chart-legend {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto 1fr;
+  gap: 4px 14px;
+  padding: 10px 4px 0;
+  font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
-  margin-bottom: 16px;
+  white-space: nowrap;
+  align-items: baseline;
 }
 
-.control-group {
-  margin-bottom: 16px;
-}
-
-.control-group:last-child {
-  margin-bottom: 0;
-}
-
-.control-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
+.legend-time {
+  justify-self: end;
+  font-size: 1.5rem;
+  font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  grid-row: span 2;
+  align-self: center;
 }
 
-.control-input-row {
+.legend-item {
+  cursor: pointer;
+  font-size: 1.3rem;
+  user-select: none;
+  transition: opacity 0.2s ease;
+  text-align: center;
+}
+
+.legend-item span {
+  font-weight: 600;
+}
+
+.legend-item.legend-off {
+  opacity: 0.25;
+  text-decoration: line-through;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 3px;
+  vertical-align: middle;
+  background: currentColor;
+}
+
+.legend-swatch-dash {
+  background: transparent;
+  border: 2px dashed currentColor;
+}
+
+.legend-tgt {
+  font-size: 1.1rem;
+  opacity: 0.75;
+}
+
+.legend-c-pit { color: var(--pit-color); }
+.legend-c-meat1 { color: var(--meat1-color); }
+.legend-c-meat2 { color: var(--meat2-color); }
+.legend-c-fan { color: var(--fan-color); }
+.legend-c-damper { color: var(--damper-color); }
+
+.legend-outputs {
+  justify-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  grid-row: span 2;
+  align-self: center;
+}
+
+.legend-outputs .legend-item {
+  text-align: left;
+}
+
+/* -------------------------------------------------------------------------
+   Settings Panel (slide-in from right)
+   ------------------------------------------------------------------------- */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition), visibility var(--transition);
+}
+
+.settings-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 85vw;
+  background: var(--bg-primary);
+  z-index: 210;
+  transform: translateX(100%);
+  transition: transform var(--transition);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.settings-panel.open {
+  transform: translateX(0);
+}
+
+.settings-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.settings-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.control-input {
-  width: 80px;
-  padding: 8px 12px;
+.settings-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* -------------------------------------------------------------------------
+   Temperature Controls (settings panel)
+   ------------------------------------------------------------------------- */
+.temp-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.temp-control-display {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+}
+
+.temp-control-input {
+  width: 72px;
+  padding: 8px 4px;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: var(--text-primary);
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.4rem;
+  font-weight: 700;
   text-align: center;
   outline: none;
   transition: border-color var(--transition);
   -moz-appearance: textfield;
+  font-variant-numeric: tabular-nums;
 }
 
-.control-input::-webkit-outer-spin-button,
-.control-input::-webkit-inner-spin-button {
+.temp-control-input::-webkit-outer-spin-button,
+.temp-control-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-.control-input:focus {
+.temp-control-input:focus {
   border-color: var(--accent);
 }
 
-.control-input.wide {
-  flex: 1;
-  max-width: 200px;
+.temp-control-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.temp-control-unit {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* Large variant (pit setpoint) */
+.temp-control-lg {
+  padding: 8px 0;
+}
+
+.temp-control-lg .temp-control-input {
+  width: 96px;
+  padding: 10px 6px;
+  font-size: 2rem;
+  color: var(--accent);
+}
+
+.temp-control-lg .temp-control-unit {
+  font-size: 1.1rem;
+}
+
+.btn-adjust-lg {
+  width: 52px;
+  height: 52px;
+  font-size: 1.1rem;
+}
+
+.settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* -------------------------------------------------------------------------
@@ -503,12 +660,13 @@ body {
 }
 
 .btn-toggle {
-  padding: 6px 14px;
+  padding: 10px 20px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-size: 1rem;
   font-weight: 600;
-  min-width: 44px;
+  min-width: 56px;
 }
 
 .btn-toggle:hover {
@@ -518,8 +676,8 @@ body {
 
 .prefs-row {
   display: flex;
+  justify-content: center;
   gap: 8px;
-  margin-bottom: 16px;
 }
 
 .btn-primary {
@@ -540,22 +698,109 @@ body {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: var(--danger);
+}
+
+.btn-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--danger);
+}
+
 /* -------------------------------------------------------------------------
-   Session Controls
+   Session Buttons (inside settings panel)
    ------------------------------------------------------------------------- */
 .session-buttons {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .session-buttons .btn {
-  flex: 1;
-  min-width: 120px;
+  width: 100%;
 }
 
 /* -------------------------------------------------------------------------
-   Responsive: Desktop (2-column layout)
+   Responsive: Narrow mobile — hide title, compact times & temp cards
+   ------------------------------------------------------------------------- */
+@media (max-width: 479px) {
+  .header-left .app-title {
+    display: none;
+  }
+
+  .header-left .app-logo {
+    margin-right: 0;
+  }
+
+  .header-left {
+    flex: 0;
+  }
+
+  .header-center {
+    gap: 6px;
+  }
+
+  .time-label {
+    font-size: 0.6rem;
+  }
+
+  .time-val {
+    font-size: 1.05rem;
+  }
+
+  .temp-card {
+    padding: 10px 6px;
+  }
+
+  .temp-value {
+    font-size: 1.8rem;
+  }
+
+  .temp-unit {
+    font-size: 0.8rem;
+  }
+
+  .probe-label {
+    font-size: 0.7rem;
+  }
+
+  .probe-icon {
+    font-size: 1.1rem;
+  }
+
+  .setpoint-display {
+    font-size: 0.8rem;
+  }
+
+  .predicted-done {
+    font-size: 0.75rem;
+  }
+
+  .legend-time {
+    font-size: 1.05rem;
+  }
+
+  .legend-item {
+    font-size: 0.85rem;
+  }
+
+  .legend-tgt {
+    font-size: 0.75rem;
+  }
+
+  .legend-outputs {
+    display: none;
+  }
+
+  .chart-legend {
+    grid-template-columns: auto auto auto 1fr;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Responsive: Desktop
    ------------------------------------------------------------------------- */
 @media (min-width: 768px) {
   .dashboard {
@@ -563,56 +808,41 @@ body {
     gap: 16px;
   }
 
-  .temp-cards {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
   .temp-value {
-    font-size: 3rem;
+    font-size: 3.2rem;
   }
 
-  /* Two-column layout for lower sections */
-  .controls-section,
-  .session-section {
-    display: inline;
+  .time-val {
+    font-size: 1.7rem;
+  }
+
+  .time-label {
+    font-size: 0.75rem;
+  }
+
+  .legend-time {
+    font-size: 1.7rem;
   }
 
   .dashboard {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     grid-template-areas:
-      "temps temps"
-      "outputs timer"
-      "chart chart"
-      "controls session";
+      "bars"
+      "temps"
+      "chart";
+  }
+
+  .output-bars {
+    grid-area: bars;
   }
 
   .temp-cards {
     grid-area: temps;
   }
 
-  .output-indicators {
-    grid-area: outputs;
-  }
-
-  .timer-section {
-    grid-area: timer;
-  }
-
   .chart-section {
     grid-area: chart;
-  }
-
-  .controls-section {
-    grid-area: controls;
-  }
-
-  .session-section {
-    grid-area: session;
-  }
-
-  .timer-card {
-    height: 100%;
   }
 }
 
@@ -621,11 +851,23 @@ body {
    ------------------------------------------------------------------------- */
 @media (min-width: 1024px) {
   .temp-value {
-    font-size: 3.2rem;
+    font-size: 3.4rem;
+  }
+
+  .time-val {
+    font-size: 1.9rem;
+  }
+
+  .legend-time {
+    font-size: 1.9rem;
   }
 
   .card {
     padding: 20px;
+  }
+
+  .temp-card {
+    padding: 24px 20px;
   }
 }
 
@@ -637,14 +879,13 @@ body {
   50% { opacity: 0.5; }
 }
 
-.connection-indicator.disconnected .conn-dot {
+.wifi-icon.disconnected {
   animation: pulse 2s infinite;
 }
 
 /* Smooth value transitions */
 .temp-value,
-.indicator-value,
-.timer-value {
+.time-val {
   transition: opacity 0.15s ease;
 }
 

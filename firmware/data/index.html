@@ -6,34 +6,77 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#f59e0b">
-  <meta name="description" content="BBQ Temperature Controller">
+  <meta name="description" content="Pit Claw Temperature Controller">
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <title>BBQ Controller</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/favicon.svg">
+  <title>Pit Claw</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <!-- Status Bar -->
-  <header class="status-bar">
-    <div class="status-left">
-      <span class="connection-indicator" id="connIndicator" title="Disconnected">
-        <span class="conn-dot"></span>
-        <span class="conn-text" id="connText">Disconnected</span>
-      </span>
+  <!-- Header Banner -->
+  <header class="header-banner">
+    <div class="header-left">
+      <svg class="app-logo" viewBox="0 0 40 40" width="32" height="32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="19" fill="#1a1a2e" stroke="#f59e0b" stroke-width="2"/>
+        <g transform="translate(6,7)" fill="#ef4444">
+          <!-- Left claw arm -->
+          <path d="M8 26 Q6 20 8 14 Q9 11 7 8 Q5 5 3 2 Q2 0.5 3.5 0.5 Q6 1 8 4 Q10 7 10 10 Q10 13 9 16 Q8 20 10 24Z" opacity="0.9"/>
+          <!-- Right claw arm -->
+          <path d="M20 26 Q22 20 20 14 Q19 11 21 8 Q23 5 25 2 Q26 0.5 24.5 0.5 Q22 1 20 4 Q18 7 18 10 Q18 13 19 16 Q20 20 18 24Z" opacity="0.9"/>
+          <!-- Left pincer tip -->
+          <path d="M3.5 0.5 Q2 -1 0.5 1 Q0 3 2 3.5 Q3.5 3.5 3.5 0.5Z"/>
+          <!-- Right pincer tip -->
+          <path d="M24.5 0.5 Q26 -1 27.5 1 Q28 3 26 3.5 Q24.5 3.5 24.5 0.5Z"/>
+          <!-- Body / joint -->
+          <ellipse cx="14" cy="26" rx="7" ry="4" opacity="0.8"/>
+        </g>
+      </svg>
+      <h1 class="app-title">PIT CLAW</h1>
     </div>
-    <div class="status-center">
-      <h1 class="app-title">BBQ Controller</h1>
+    <div class="header-center">
+      <div class="time-block">
+        <span class="time-label">Start</span>
+        <span class="time-val" id="cookStart">--:--</span>
+      </div>
+      <div class="time-block">
+        <span class="time-label">Elapsed</span>
+        <span class="time-val time-val-accent" id="cookTimer">00:00:00</span>
+      </div>
+      <div class="time-block">
+        <span class="time-label">Done</span>
+        <span class="time-val" id="cookDone">--:--</span>
+      </div>
     </div>
-    <div class="status-right">
-      <svg class="wifi-icon" id="wifiIcon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+    <div class="header-right">
+      <svg class="wifi-icon" id="wifiIcon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
         <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
       </svg>
+      <button class="icon-btn" id="btnNotify" aria-label="Toggle notifications">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btnSettings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+          <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/>
+        </svg>
+      </button>
     </div>
   </header>
 
   <main class="dashboard">
+    <!-- Output Bars (Fan / Damper) -->
+    <section class="output-bars">
+      <div class="output-bar-track">
+        <div class="output-bar fan-bar" id="fanBar" style="width: 0%"></div>
+      </div>
+      <div class="output-bar-track">
+        <div class="output-bar damper-bar" id="damperBar" style="width: 0%"></div>
+      </div>
+    </section>
+
     <!-- Temperature Cards Row -->
     <section class="temp-cards">
       <!-- Pit Temperature Card -->
@@ -90,38 +133,6 @@
       </div>
     </section>
 
-    <!-- Output Indicators -->
-    <section class="output-indicators">
-      <div class="card indicator-card">
-        <div class="indicator-row">
-          <div class="indicator">
-            <span class="indicator-label">Fan</span>
-            <div class="indicator-bar-track">
-              <div class="indicator-bar fan-bar" id="fanBar" style="width: 0%"></div>
-            </div>
-            <span class="indicator-value" id="fanValue">0%</span>
-          </div>
-          <div class="indicator">
-            <span class="indicator-label">Damper</span>
-            <div class="indicator-bar-track">
-              <div class="indicator-bar damper-bar" id="damperBar" style="width: 0%"></div>
-            </div>
-            <span class="indicator-value" id="damperValue">0%</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Cook Timer -->
-    <section class="timer-section">
-      <div class="card timer-card">
-        <span class="timer-label">Cook Time</span>
-        <span class="timer-value" id="cookTimer">00:00:00</span>
-        <span class="timer-separator">/</span>
-        <span class="timer-estimate" id="cookEstimate">Est. --:--:--</span>
-      </div>
-    </section>
-
     <!-- Chart -->
     <section class="chart-section">
       <div class="card chart-card">
@@ -129,51 +140,87 @@
           <h2 class="chart-title">Temperature History</h2>
         </div>
         <div id="chartContainer" class="chart-container"></div>
-      </div>
-    </section>
-
-    <!-- Controls Panel -->
-    <section class="controls-section">
-      <div class="card controls-card">
-        <h2 class="controls-title">Controls</h2>
-        <div class="prefs-row">
-          <button class="btn btn-toggle" id="btnToggleUnits" title="Toggle &deg;F / &deg;C">&deg;F</button>
-          <button class="btn btn-toggle" id="btnToggleTime" title="Toggle 12h / 24h">12h</button>
-        </div>
-        <div class="control-group">
-          <label class="control-label" for="pitSpInput">Pit Setpoint (&deg;F)</label>
-          <div class="control-input-row">
-            <button class="btn btn-adjust" id="pitSpDown" aria-label="Decrease setpoint by 5">-5</button>
-            <input type="number" class="control-input" id="pitSpInput" min="100" max="500" step="5" value="225">
-            <button class="btn btn-adjust" id="pitSpUp" aria-label="Increase setpoint by 5">+5</button>
-          </div>
-        </div>
-        <div class="control-group">
-          <label class="control-label" for="meat1TargetInput">Meat 1 Target (&deg;F)</label>
-          <div class="control-input-row">
-            <input type="number" class="control-input wide" id="meat1TargetInput" min="100" max="212" step="1" placeholder="e.g. 203">
-          </div>
-        </div>
-        <div class="control-group">
-          <label class="control-label" for="meat2TargetInput">Meat 2 Target (&deg;F)</label>
-          <div class="control-input-row">
-            <input type="number" class="control-input wide" id="meat2TargetInput" min="100" max="212" step="1" placeholder="e.g. 195">
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Session Controls -->
-    <section class="session-section">
-      <div class="card session-card">
-        <h2 class="controls-title">Session</h2>
-        <div class="session-buttons">
-          <button class="btn btn-primary" id="btnNewSession">New Session</button>
-          <button class="btn btn-secondary" id="btnDownloadCSV">Download CSV</button>
+        <div class="chart-legend">
+          <span class="legend-outputs">
+            <span class="legend-item legend-c-fan" data-series="4"><span class="legend-swatch"></span>Fan <span id="legFan">--</span></span>
+            <span class="legend-item legend-c-damper" data-series="5"><span class="legend-swatch"></span>Dmpr <span id="legDamper">--</span></span>
+          </span>
+          <span class="legend-item legend-c-pit" data-series="1"><span class="legend-swatch"></span>Pit <span id="legPit">--</span></span>
+          <span class="legend-item legend-c-meat1" data-series="2"><span class="legend-swatch"></span>Meat 1 <span id="legMeat1">--</span></span>
+          <span class="legend-item legend-c-meat2" data-series="3"><span class="legend-swatch"></span>Meat 2 <span id="legMeat2">--</span></span>
+          <span class="legend-time" id="legTime">--:--</span>
+          <span class="legend-item legend-tgt legend-c-pit" data-series="6"><span class="legend-swatch legend-swatch-dash"></span>SP <span id="legSP">--</span></span>
+          <span class="legend-item legend-tgt legend-c-meat1" data-series="7"><span class="legend-swatch legend-swatch-dash"></span>Tgt <span id="legM1Tgt">--</span></span>
+          <span class="legend-item legend-tgt legend-c-meat2" data-series="8"><span class="legend-swatch legend-swatch-dash"></span>Tgt <span id="legM2Tgt">--</span></span>
         </div>
       </div>
     </section>
   </main>
+
+  <!-- Settings Panel -->
+  <div class="settings-overlay" id="settingsOverlay"></div>
+  <aside class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="icon-btn" id="btnCloseSettings" aria-label="Close settings">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-group">
+        <div class="settings-label">Pit Setpoint</div>
+        <div class="temp-control temp-control-lg">
+          <button class="btn btn-adjust btn-adjust-lg" id="pitSpDown" aria-label="Decrease setpoint by 5">-5</button>
+          <div class="temp-control-display">
+            <input type="number" class="temp-control-input temp-control-input-lg" id="pitSpInput" min="100" max="500" step="5" value="225">
+            <span class="temp-control-unit">&deg;F</span>
+          </div>
+          <button class="btn btn-adjust btn-adjust-lg" id="pitSpUp" aria-label="Increase setpoint by 5">+5</button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <div class="settings-label">Meat 1 Target</div>
+        <div class="temp-control">
+          <button class="btn btn-adjust" id="meat1TargetDown" aria-label="Decrease target by 5">-5</button>
+          <div class="temp-control-display">
+            <input type="number" class="temp-control-input" id="meat1TargetInput" min="100" max="212" step="5" placeholder="---">
+            <span class="temp-control-unit">&deg;F</span>
+          </div>
+          <button class="btn btn-adjust" id="meat1TargetUp" aria-label="Increase target by 5">+5</button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-label">Meat 2 Target</div>
+        <div class="temp-control">
+          <button class="btn btn-adjust" id="meat2TargetDown" aria-label="Decrease target by 5">-5</button>
+          <div class="temp-control-display">
+            <input type="number" class="temp-control-input" id="meat2TargetInput" min="100" max="212" step="5" placeholder="---">
+            <span class="temp-control-unit">&deg;F</span>
+          </div>
+          <button class="btn btn-adjust" id="meat2TargetUp" aria-label="Increase target by 5">+5</button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <div class="settings-label">Session</div>
+        <div class="session-buttons">
+          <button class="btn btn-secondary" id="btnDownloadCSV">Download CSV</button>
+          <button class="btn btn-danger-outline" id="btnNewSession">New Session</button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <div class="settings-label">Display</div>
+        <div class="prefs-row">
+          <button class="btn btn-toggle" id="btnToggleUnits" title="Toggle &deg;F / &deg;C">&deg;F</button>
+          <button class="btn btn-toggle" id="btnToggleTime" title="Toggle 12h / 24h">12h</button>
+        </div>
+      </div>
+    </div>
+  </aside>
 
   <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
   <script src="/app.js"></script>

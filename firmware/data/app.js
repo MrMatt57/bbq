@@ -1,4 +1,4 @@
-// BBQ Controller - app.js
+// Pit Claw - app.js
 // Vanilla JavaScript, no build step required.
 
 (function () {
@@ -22,7 +22,7 @@
   var connected = false;
 
   var chart = null;
-  var chartData = [[], [], [], [], [], [], []]; // [timestamps, pit, meat1, meat2, fan, damper, setpoint]
+  var chartData = [[], [], [], [], [], [], [], [], []]; // [timestamps, pit, meat1, meat2, fan, damper, setpoint, meat1Target, meat2Target]
   var predictionData = { meat1: null, meat2: null }; // { times: [], temps: [] } for each
 
   var pitSetpoint = 225;   // always stored in °F
@@ -37,6 +37,12 @@
   var latestServerTs = null;  // most recent msg.ts from server (seconds)
 
   var debounceTimers = {};
+  var seriesShow = null; // persists toggle state across chart recreation
+
+  var notifyEnabled = false;
+  var notifyMeat1Fired = false;  // true once meat1 target notification sent
+  var notifyMeat2Fired = false;  // true once meat2 target notification sent
+  var audioCtx = null;           // Web Audio API context (created on user gesture)
 
   // ---------------------------------------------------------------------------
   // DOM References
@@ -44,8 +50,12 @@
   var dom = {};
 
   function cacheDom() {
-    dom.connIndicator = document.getElementById('connIndicator');
-    dom.connText = document.getElementById('connText');
+    dom.wifiIcon = document.getElementById('wifiIcon');
+    dom.btnNotify = document.getElementById('btnNotify');
+    dom.btnSettings = document.getElementById('btnSettings');
+    dom.btnCloseSettings = document.getElementById('btnCloseSettings');
+    dom.settingsPanel = document.getElementById('settingsPanel');
+    dom.settingsOverlay = document.getElementById('settingsOverlay');
     dom.pitTemp = document.getElementById('pitTemp');
     dom.pitSetpoint = document.getElementById('pitSetpoint');
     dom.meat1Temp = document.getElementById('meat1Temp');
@@ -55,21 +65,33 @@
     dom.meat1Prediction = document.getElementById('meat1Prediction');
     dom.meat2Prediction = document.getElementById('meat2Prediction');
     dom.fanBar = document.getElementById('fanBar');
-    dom.fanValue = document.getElementById('fanValue');
     dom.damperBar = document.getElementById('damperBar');
-    dom.damperValue = document.getElementById('damperValue');
+    dom.cookStart = document.getElementById('cookStart');
     dom.cookTimer = document.getElementById('cookTimer');
-    dom.cookEstimate = document.getElementById('cookEstimate');
+    dom.cookDone = document.getElementById('cookDone');
     dom.chartContainer = document.getElementById('chartContainer');
     dom.pitSpInput = document.getElementById('pitSpInput');
     dom.pitSpDown = document.getElementById('pitSpDown');
     dom.pitSpUp = document.getElementById('pitSpUp');
     dom.meat1TargetInput = document.getElementById('meat1TargetInput');
+    dom.meat1TargetDown = document.getElementById('meat1TargetDown');
+    dom.meat1TargetUp = document.getElementById('meat1TargetUp');
     dom.meat2TargetInput = document.getElementById('meat2TargetInput');
+    dom.meat2TargetDown = document.getElementById('meat2TargetDown');
+    dom.meat2TargetUp = document.getElementById('meat2TargetUp');
     dom.btnNewSession = document.getElementById('btnNewSession');
     dom.btnDownloadCSV = document.getElementById('btnDownloadCSV');
     dom.btnToggleUnits = document.getElementById('btnToggleUnits');
     dom.btnToggleTime = document.getElementById('btnToggleTime');
+    dom.legTime = document.getElementById('legTime');
+    dom.legPit = document.getElementById('legPit');
+    dom.legMeat1 = document.getElementById('legMeat1');
+    dom.legMeat2 = document.getElementById('legMeat2');
+    dom.legSP = document.getElementById('legSP');
+    dom.legM1Tgt = document.getElementById('legM1Tgt');
+    dom.legM2Tgt = document.getElementById('legM2Tgt');
+    dom.legFan = document.getElementById('legFan');
+    dom.legDamper = document.getElementById('legDamper');
   }
 
   // ---------------------------------------------------------------------------
@@ -101,6 +123,15 @@
     h = h % 12;
     if (h === 0) h = 12;
     return h + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+  }
+
+  function formatRemaining(seconds) {
+    if (seconds <= 0) return '0m';
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm';
+    return '<1m';
   }
 
   // ---------------------------------------------------------------------------
@@ -160,6 +191,7 @@
         var prefs = JSON.parse(stored);
         currentUnits = prefs.units === 'C' ? 'C' : 'F';
         currentTimeFormat = prefs.timeFormat === '24h' ? '24h' : '12h';
+        notifyEnabled = !!prefs.notify && ('Notification' in window) && Notification.permission === 'granted';
         return;
       }
     } catch (e) { /* fall through to defaults */ }
@@ -172,7 +204,8 @@
     try {
       localStorage.setItem('bbq_prefs', JSON.stringify({
         units: currentUnits,
-        timeFormat: currentTimeFormat
+        timeFormat: currentTimeFormat,
+        notify: notifyEnabled
       }));
     } catch (e) { /* silently fail */ }
   }
@@ -243,15 +276,11 @@
 
   function updateConnectionStatus(isConnected) {
     if (isConnected) {
-      dom.connIndicator.classList.add('connected');
-      dom.connIndicator.classList.remove('disconnected');
-      dom.connText.textContent = 'Connected';
-      dom.connIndicator.title = 'Connected';
+      dom.wifiIcon.classList.add('connected');
+      dom.wifiIcon.classList.remove('disconnected');
     } else {
-      dom.connIndicator.classList.remove('connected');
-      dom.connIndicator.classList.add('disconnected');
-      dom.connText.textContent = 'Disconnected';
-      dom.connIndicator.title = 'Disconnected';
+      dom.wifiIcon.classList.remove('connected');
+      dom.wifiIcon.classList.add('disconnected');
     }
   }
 
@@ -265,6 +294,7 @@
       appendChartData(msg);
       updateCookTimer(msg);
       updatePredictions();
+      checkTargetNotifications(msg);
     } else if (msg.type === 'history') {
       loadHistory(msg);
     } else if (msg.type === 'session' && msg.action === 'reset') {
@@ -278,6 +308,7 @@
     // race where stale data messages from the old session sneak in between
     // the local clear and the server-side reset, leaving cookTimerStart
     // pointing at an old-session timestamp and causing negative elapsed time.
+    closeSettings();
     resetCookTimer();
     latestServerTs = null;
 
@@ -287,6 +318,7 @@
     if (chart) {
       chart.setData(chartData);
     }
+    updateLegendValues(null);
 
     // Restore setpoint from the server's reset defaults
     if (msg.sp !== undefined) {
@@ -331,6 +363,8 @@
       chartData[4].push(d.fan !== undefined ? d.fan : null);
       chartData[5].push(d.damper !== undefined ? d.damper : null);
       chartData[6].push(d.sp !== undefined ? d.sp : pitSetpoint);
+      chartData[7].push(meat1Target);
+      chartData[8].push(meat2Target);
     }
 
     // Update display with the latest point
@@ -349,6 +383,7 @@
       chart.setData(buildChartDataWithPrediction());
     }
     updatePredictions();
+    updateLegendValues(null);
   }
 
   function updateTemperatures(msg) {
@@ -381,9 +416,7 @@
     var damper = msg.damper !== undefined ? msg.damper : 0;
 
     dom.fanBar.style.width = fan + '%';
-    dom.fanValue.textContent = Math.round(fan) + '%';
     dom.damperBar.style.width = damper + '%';
-    dom.damperValue.textContent = Math.round(damper) + '%';
   }
 
   // ---------------------------------------------------------------------------
@@ -401,25 +434,38 @@
 
   function tickCookTimer() {
     if (!cookTimerStart || !latestServerTs) {
+      dom.cookStart.textContent = '--:--';
       dom.cookTimer.textContent = '00:00:00';
-      dom.cookEstimate.textContent = 'Est. --:--:--';
+      dom.cookDone.textContent = '--:--';
       return;
     }
+
+    // Start time (clock)
+    dom.cookStart.textContent = formatClockTime(new Date(cookTimerStart * 1000));
+
+    // Elapsed
     var elapsed = latestServerTs - cookTimerStart;
     dom.cookTimer.textContent = formatTime(elapsed);
 
-    // Estimated total cook time = max predicted done time - cook start
+    // Done time — average of predictions, or single if only one is set
     var est1 = predictDoneTime(2, meat1Target);
     var est2 = predictDoneTime(3, meat2Target);
-    var maxDone = null;
-    if (est1) maxDone = est1.doneTime;
-    if (est2 && (!maxDone || est2.doneTime > maxDone)) maxDone = est2.doneTime;
+    var doneTime = null;
 
-    if (maxDone) {
-      var totalSec = maxDone - cookTimerStart;
-      dom.cookEstimate.textContent = 'Est. ' + formatTime(totalSec);
+    if (est1 && est2) {
+      doneTime = (est1.doneTime + est2.doneTime) / 2;
+    } else if (est1) {
+      doneTime = est1.doneTime;
+    } else if (est2) {
+      doneTime = est2.doneTime;
+    }
+
+    if (doneTime) {
+      var remaining = doneTime - latestServerTs;
+      var remStr = remaining > 0 ? ' (' + formatRemaining(remaining) + ')' : ' (Done)';
+      dom.cookDone.textContent = formatClockTime(new Date(doneTime * 1000)) + remStr;
     } else {
-      dom.cookEstimate.textContent = 'Est. --:--:--';
+      dom.cookDone.textContent = '--:--';
     }
   }
 
@@ -433,8 +479,9 @@
   function resetCookTimer() {
     cookTimerStart = null;
     localStorage.removeItem('bbq_cook_timer_start');
+    dom.cookStart.textContent = '--:--';
     dom.cookTimer.textContent = '00:00:00';
-    dom.cookEstimate.textContent = 'Est. --:--:--';
+    dom.cookDone.textContent = '--:--';
   }
 
   // ---------------------------------------------------------------------------
@@ -443,14 +490,18 @@
   function buildChartOpts() {
     var container = dom.chartContainer;
     var width = container.clientWidth;
-    var height = Math.max(250, Math.min(400, window.innerHeight * 0.35));
+    var height = Math.max(280, Math.min(500, window.innerHeight * 0.45));
 
     return {
       width: width,
       height: height,
       tzDate: function (ts) { return new Date(ts * 1000); },
+      legend: { show: false },
       cursor: {
         drag: { x: true, y: false }
+      },
+      hooks: {
+        setCursor: [function (u) { updateLegendValues(u.cursor.idx); }]
       },
       scales: {
         x: { time: true },
@@ -503,6 +554,7 @@
           scale: 'temp',
           stroke: '#f59e0b',
           width: 2,
+          points: { show: false },
           value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         },
         {
@@ -510,6 +562,7 @@
           scale: 'temp',
           stroke: '#ef4444',
           width: 2,
+          points: { show: false },
           value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         },
         {
@@ -517,6 +570,7 @@
           scale: 'temp',
           stroke: '#3b82f6',
           width: 2,
+          points: { show: false },
           value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         },
         {
@@ -525,6 +579,8 @@
           stroke: '#10b981',
           width: 1.5,
           dash: [6, 3],
+          show: false,
+          points: { show: false },
           value: function (u, v) { return v == null ? '--' : Math.round(v) + '%'; }
         },
         {
@@ -533,6 +589,8 @@
           stroke: '#8b5cf6',
           width: 1.5,
           dash: [6, 3],
+          show: false,
+          points: { show: false },
           value: function (u, v) { return v == null ? '--' : Math.round(v) + '%'; }
         },
         {
@@ -541,6 +599,25 @@
           stroke: '#f59e0b',
           width: 1.5,
           dash: [8, 4],
+          points: { show: false },
+          value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
+        },
+        {
+          label: 'Meat 1 Target',
+          scale: 'temp',
+          stroke: '#ef4444',
+          width: 1.5,
+          dash: [8, 4],
+          points: { show: false },
+          value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
+        },
+        {
+          label: 'Meat 2 Target',
+          scale: 'temp',
+          stroke: '#3b82f6',
+          width: 1.5,
+          dash: [8, 4],
+          points: { show: false },
           value: function (u, v) { return v == null ? '--' : displayTemp(v) + '\u00B0'; }
         }
       ]
@@ -559,14 +636,21 @@
 
   function recreateChart() {
     if (chart) {
+      seriesShow = chart.series.map(function (s) { return s.show; });
       chart.destroy();
       chart = null;
     }
     dom.chartContainer.innerHTML = '';
     initChart();
+    if (chart && seriesShow) {
+      for (var i = 1; i < seriesShow.length && i < chart.series.length; i++) {
+        chart.setSeries(i, { show: seriesShow[i] });
+      }
+    }
     if (chartData[0].length > 0 && chart) {
       chart.setData(buildChartDataWithPrediction());
     }
+    syncLegendClasses();
   }
 
   function appendChartData(msg) {
@@ -580,6 +664,8 @@
     chartData[4].push(msg.fan !== undefined ? msg.fan : null);
     chartData[5].push(msg.damper !== undefined ? msg.damper : null);
     chartData[6].push(msg.sp !== undefined ? msg.sp : pitSetpoint);
+    chartData[7].push(meat1Target);
+    chartData[8].push(meat2Target);
 
     // Trim data older than 4 hours (keep extra buffer beyond 2h visible window)
     var cutoff = now - 4 * 60 * 60;
@@ -589,6 +675,25 @@
       }
     }
 
+    if (chart) {
+      chart.setData(buildChartDataWithPrediction());
+    }
+    updateLegendValues(null);
+  }
+
+  function clearTargetFromChart(seriesIndex) {
+    for (var i = 0; i < chartData[seriesIndex].length; i++) {
+      chartData[seriesIndex][i] = null;
+    }
+    if (chart) {
+      chart.setData(buildChartDataWithPrediction());
+    }
+  }
+
+  function restoreTargetInChart(seriesIndex, fVal) {
+    for (var i = 0; i < chartData[seriesIndex].length; i++) {
+      chartData[seriesIndex][i] = fVal;
+    }
     if (chart) {
       chart.setData(buildChartDataWithPrediction());
     }
@@ -606,8 +711,59 @@
   function resizeChart() {
     if (!chart || !dom.chartContainer) return;
     var width = dom.chartContainer.clientWidth;
-    var height = Math.max(250, Math.min(400, window.innerHeight * 0.35));
+    var height = Math.max(280, Math.min(500, window.innerHeight * 0.45));
     chart.setSize({ width: width, height: height });
+  }
+
+  function initLegendToggles() {
+    var items = document.querySelectorAll('.legend-item[data-series]');
+    for (var i = 0; i < items.length; i++) {
+      items[i].addEventListener('click', function () {
+        var idx = parseInt(this.getAttribute('data-series'), 10);
+        if (!chart || isNaN(idx) || idx < 1 || idx >= chart.series.length) return;
+        var show = !chart.series[idx].show;
+        chart.setSeries(idx, { show: show });
+        syncLegendClasses();
+      });
+    }
+  }
+
+  function syncLegendClasses() {
+    if (!chart) return;
+    var items = document.querySelectorAll('.legend-item[data-series]');
+    for (var i = 0; i < items.length; i++) {
+      var idx = parseInt(items[i].getAttribute('data-series'), 10);
+      if (!isNaN(idx) && idx < chart.series.length) {
+        items[i].classList.toggle('legend-off', !chart.series[idx].show);
+      }
+    }
+  }
+
+  function updateLegendValues(idx) {
+    var len = chartData[0].length;
+    if (idx == null || idx < 0 || idx >= len) idx = len - 1;
+    if (len === 0 || idx < 0) {
+      dom.legTime.textContent = '--:--';
+      dom.legPit.textContent = '--';
+      dom.legMeat1.textContent = '--';
+      dom.legMeat2.textContent = '--';
+      dom.legSP.textContent = '--';
+      dom.legM1Tgt.textContent = '--';
+      dom.legM2Tgt.textContent = '--';
+      dom.legFan.textContent = '--';
+      dom.legDamper.textContent = '--';
+      return;
+    }
+    dom.legTime.textContent = formatClockTime(new Date(chartData[0][idx] * 1000));
+    var v;
+    v = chartData[1][idx]; dom.legPit.textContent = v == null ? '--' : displayTemp(v) + '\u00B0';
+    v = chartData[2][idx]; dom.legMeat1.textContent = v == null ? '--' : displayTemp(v) + '\u00B0';
+    v = chartData[3][idx]; dom.legMeat2.textContent = v == null ? '--' : displayTemp(v) + '\u00B0';
+    v = chartData[4][idx]; dom.legFan.textContent = v == null ? '--' : Math.round(v) + '%';
+    v = chartData[5][idx]; dom.legDamper.textContent = v == null ? '--' : Math.round(v) + '%';
+    v = chartData[6][idx]; dom.legSP.textContent = v == null ? '--' : displayTemp(v) + '\u00B0';
+    v = chartData[7][idx]; dom.legM1Tgt.textContent = v == null ? '--' : displayTemp(v) + '\u00B0';
+    v = chartData[8][idx]; dom.legM2Tgt.textContent = v == null ? '--' : displayTemp(v) + '\u00B0';
   }
 
   // ---------------------------------------------------------------------------
@@ -679,7 +835,7 @@
     }
 
     if (chartData[0].length < MIN_PREDICTION_POINTS) {
-      domElement.textContent = 'Est. done: Calculating...';
+      domElement.textContent = 'Calculating...';
       return;
     }
 
@@ -690,13 +846,15 @@
       if (last !== null && last >= target) {
         domElement.textContent = 'Target reached!';
       } else {
-        domElement.textContent = 'Est. done: Calculating...';
+        domElement.textContent = 'Calculating...';
       }
       return;
     }
 
     var doneDate = new Date(pred.doneTime * 1000);
-    domElement.textContent = 'Est. done: ' + formatClockTime(doneDate);
+    var remaining = pred.doneTime - (latestServerTs || Math.floor(Date.now() / 1000));
+    var remStr = remaining > 0 ? formatRemaining(remaining) : 'Done';
+    domElement.textContent = formatClockTime(doneDate) + ' (' + remStr + ')';
   }
 
   // ---------------------------------------------------------------------------
@@ -733,13 +891,11 @@
       unitSpans[i].textContent = label;
     }
 
-    // Update control labels
-    var pitLabel = document.querySelector('label[for="pitSpInput"]');
-    if (pitLabel) pitLabel.textContent = 'Pit Setpoint (' + label + ')';
-    var m1Label = document.querySelector('label[for="meat1TargetInput"]');
-    if (m1Label) m1Label.textContent = 'Meat 1 Target (' + label + ')';
-    var m2Label = document.querySelector('label[for="meat2TargetInput"]');
-    if (m2Label) m2Label.textContent = 'Meat 2 Target (' + label + ')';
+    // Update unit spans in settings panel controls
+    var controlUnitSpans = document.querySelectorAll('.temp-control-unit');
+    for (var j = 0; j < controlUnitSpans.length; j++) {
+      controlUnitSpans[j].textContent = label;
+    }
 
     // Update input constraints and +/- button text
     if (currentUnits === 'C') {
@@ -752,10 +908,18 @@
       dom.pitSpUp.setAttribute('aria-label', 'Increase setpoint by 3');
       dom.meat1TargetInput.min = 38;
       dom.meat1TargetInput.max = 100;
-      dom.meat1TargetInput.placeholder = 'e.g. 95';
+      dom.meat1TargetInput.placeholder = '---';
+      dom.meat1TargetDown.textContent = '-3';
+      dom.meat1TargetDown.setAttribute('aria-label', 'Decrease target by 3');
+      dom.meat1TargetUp.textContent = '+3';
+      dom.meat1TargetUp.setAttribute('aria-label', 'Increase target by 3');
       dom.meat2TargetInput.min = 38;
       dom.meat2TargetInput.max = 100;
-      dom.meat2TargetInput.placeholder = 'e.g. 91';
+      dom.meat2TargetInput.placeholder = '---';
+      dom.meat2TargetDown.textContent = '-3';
+      dom.meat2TargetDown.setAttribute('aria-label', 'Decrease target by 3');
+      dom.meat2TargetUp.textContent = '+3';
+      dom.meat2TargetUp.setAttribute('aria-label', 'Increase target by 3');
     } else {
       dom.pitSpInput.min = 100;
       dom.pitSpInput.max = 500;
@@ -766,10 +930,18 @@
       dom.pitSpUp.setAttribute('aria-label', 'Increase setpoint by 5');
       dom.meat1TargetInput.min = 100;
       dom.meat1TargetInput.max = 212;
-      dom.meat1TargetInput.placeholder = 'e.g. 203';
+      dom.meat1TargetInput.placeholder = '---';
+      dom.meat1TargetDown.textContent = '-5';
+      dom.meat1TargetDown.setAttribute('aria-label', 'Decrease target by 5');
+      dom.meat1TargetUp.textContent = '+5';
+      dom.meat1TargetUp.setAttribute('aria-label', 'Increase target by 5');
       dom.meat2TargetInput.min = 100;
       dom.meat2TargetInput.max = 212;
-      dom.meat2TargetInput.placeholder = 'e.g. 195';
+      dom.meat2TargetInput.placeholder = '---';
+      dom.meat2TargetDown.textContent = '-5';
+      dom.meat2TargetDown.setAttribute('aria-label', 'Decrease target by 5');
+      dom.meat2TargetUp.textContent = '+5';
+      dom.meat2TargetUp.setAttribute('aria-label', 'Increase target by 5');
     }
   }
 
@@ -788,13 +960,35 @@
     if (meat1Target !== null) {
       dom.meat1Target.textContent = displayTemp(meat1Target);
       dom.meat1TargetInput.value = displayTemp(meat1Target);
+    } else {
+      dom.meat1Target.textContent = '---';
+      dom.meat1TargetInput.value = '';
     }
     if (meat2Target !== null) {
       dom.meat2Target.textContent = displayTemp(meat2Target);
       dom.meat2TargetInput.value = displayTemp(meat2Target);
+    } else {
+      dom.meat2Target.textContent = '---';
+      dom.meat2TargetInput.value = '';
     }
 
     updatePredictions();
+    updateLegendValues(null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Settings Panel
+  // ---------------------------------------------------------------------------
+  function openSettings() {
+    dom.settingsPanel.classList.add('open');
+    dom.settingsOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSettings() {
+    dom.settingsPanel.classList.remove('open');
+    dom.settingsOverlay.classList.remove('active');
+    document.body.style.overflow = '';
   }
 
   // ---------------------------------------------------------------------------
@@ -831,13 +1025,26 @@
 
     // Meat targets (user enters display unit, convert to °F for server)
     dom.meat1TargetInput.addEventListener('change', function () {
-      var displayVal = parseInt(this.value, 10);
+      notifyMeat1Fired = false;
+      var raw = this.value.trim();
+      if (raw === '') {
+        meat1Target = null;
+        dom.meat1Target.textContent = '---';
+        dom.meat1Prediction.textContent = '';
+        clearTargetFromChart(7);
+        debounce('meat1Target', function () {
+          wsSend({ type: 'alarm', meat1Target: null });
+        });
+        return;
+      }
+      var displayVal = parseInt(raw, 10);
       var min = currentUnits === 'C' ? 38 : 100;
       var max = currentUnits === 'C' ? 100 : 212;
       if (!isNaN(displayVal) && displayVal >= min && displayVal <= max) {
         var fVal = displayTempFromInput(displayVal);
         meat1Target = fVal;
         dom.meat1Target.textContent = displayVal;
+        restoreTargetInChart(7, fVal);
         debounce('meat1Target', function () {
           wsSend({ type: 'alarm', meat1Target: fVal });
         });
@@ -845,17 +1052,82 @@
     });
 
     dom.meat2TargetInput.addEventListener('change', function () {
-      var displayVal = parseInt(this.value, 10);
+      notifyMeat2Fired = false;
+      var raw = this.value.trim();
+      if (raw === '') {
+        meat2Target = null;
+        dom.meat2Target.textContent = '---';
+        dom.meat2Prediction.textContent = '';
+        clearTargetFromChart(8);
+        debounce('meat2Target', function () {
+          wsSend({ type: 'alarm', meat2Target: null });
+        });
+        return;
+      }
+      var displayVal = parseInt(raw, 10);
       var min = currentUnits === 'C' ? 38 : 100;
       var max = currentUnits === 'C' ? 100 : 212;
       if (!isNaN(displayVal) && displayVal >= min && displayVal <= max) {
         var fVal = displayTempFromInput(displayVal);
         meat2Target = fVal;
         dom.meat2Target.textContent = displayVal;
+        restoreTargetInChart(8, fVal);
         debounce('meat2Target', function () {
           wsSend({ type: 'alarm', meat2Target: fVal });
         });
       }
+    });
+
+    // Meat 1 Target +/- buttons
+    dom.meat1TargetDown.addEventListener('click', function () {
+      var raw = dom.meat1TargetInput.value.trim();
+      if (raw === '') return;
+      var displayVal = parseInt(raw, 10);
+      var step = currentUnits === 'C' ? 3 : 5;
+      var min = currentUnits === 'C' ? 38 : 100;
+      displayVal = Math.max(min, displayVal - step);
+      dom.meat1TargetInput.value = displayVal;
+      dom.meat1TargetInput.dispatchEvent(new Event('change'));
+    });
+
+    dom.meat1TargetUp.addEventListener('click', function () {
+      var raw = dom.meat1TargetInput.value.trim();
+      var step = currentUnits === 'C' ? 3 : 5;
+      var max = currentUnits === 'C' ? 100 : 212;
+      var displayVal;
+      if (raw === '') {
+        displayVal = currentUnits === 'C' ? 90 : 195;
+      } else {
+        displayVal = Math.min(max, parseInt(raw, 10) + step);
+      }
+      dom.meat1TargetInput.value = displayVal;
+      dom.meat1TargetInput.dispatchEvent(new Event('change'));
+    });
+
+    // Meat 2 Target +/- buttons
+    dom.meat2TargetDown.addEventListener('click', function () {
+      var raw = dom.meat2TargetInput.value.trim();
+      if (raw === '') return;
+      var displayVal = parseInt(raw, 10);
+      var step = currentUnits === 'C' ? 3 : 5;
+      var min = currentUnits === 'C' ? 38 : 100;
+      displayVal = Math.max(min, displayVal - step);
+      dom.meat2TargetInput.value = displayVal;
+      dom.meat2TargetInput.dispatchEvent(new Event('change'));
+    });
+
+    dom.meat2TargetUp.addEventListener('click', function () {
+      var raw = dom.meat2TargetInput.value.trim();
+      var step = currentUnits === 'C' ? 3 : 5;
+      var max = currentUnits === 'C' ? 100 : 212;
+      var displayVal;
+      if (raw === '') {
+        displayVal = currentUnits === 'C' ? 90 : 195;
+      } else {
+        displayVal = Math.min(max, parseInt(raw, 10) + step);
+      }
+      dom.meat2TargetInput.value = displayVal;
+      dom.meat2TargetInput.dispatchEvent(new Event('change'));
     });
 
     // Session controls
@@ -880,6 +1152,127 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Notifications
+  // ---------------------------------------------------------------------------
+  function toggleNotifications() {
+    // Create/resume AudioContext during this user gesture so beeps work later
+    ensureAudioContext();
+
+    if (!('Notification' in window)) {
+      alert('This browser does not support notifications.');
+      return;
+    }
+
+    if (notifyEnabled) {
+      notifyEnabled = false;
+      savePrefs();
+      syncNotifyButton();
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      notifyEnabled = true;
+      notifyMeat1Fired = false;
+      notifyMeat2Fired = false;
+      savePrefs();
+      syncNotifyButton();
+      playAlarmBeep();
+      sendNotification('Notifications enabled', 'You will be notified when meat targets are reached.');
+    } else if (Notification.permission === 'denied') {
+      alert('Notifications are blocked. Please enable them in your browser settings.');
+      syncNotifyButton();
+    } else {
+      Notification.requestPermission().then(function (perm) {
+        if (perm === 'granted') {
+          notifyEnabled = true;
+          notifyMeat1Fired = false;
+          notifyMeat2Fired = false;
+          savePrefs();
+          playAlarmBeep();
+          sendNotification('Notifications enabled', 'You will be notified when meat targets are reached.');
+        }
+        syncNotifyButton();
+      });
+    }
+  }
+
+  function syncNotifyButton() {
+    dom.btnNotify.classList.remove('notify-on', 'notify-denied');
+    if (!('Notification' in window) || Notification.permission === 'denied') {
+      dom.btnNotify.classList.add('notify-denied');
+    } else if (notifyEnabled) {
+      dom.btnNotify.classList.add('notify-on');
+    }
+  }
+
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  function playAlarmBeep() {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+    var now = audioCtx.currentTime;
+    for (var i = 0; i < 3; i++) {
+      var start = now + i * 0.25;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, start);
+      gain.gain.exponentialRampToValueAtTime(0.01, start + 0.15);
+      osc.start(start);
+      osc.stop(start + 0.15);
+    }
+  }
+
+  function sendNotification(title, body) {
+    if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    var opts = {
+      body: body,
+      icon: '/favicon.svg',
+      tag: 'pitclaw-' + title.replace(/\s+/g, '-').toLowerCase()
+    };
+    // Always try the service worker path first via .ready (resolves when SW is
+    // active, regardless of whether .controller is set yet on this page load).
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.ready.then(function (reg) {
+        return reg.showNotification(title, opts);
+      }).catch(function () {
+        try { new Notification(title, opts); } catch (e) {}
+      });
+    } else {
+      try { new Notification(title, opts); } catch (e) {}
+    }
+  }
+
+  function checkTargetNotifications(msg) {
+    if (!notifyEnabled) return;
+
+    var meat1Valid = msg.meat1 !== null && msg.meat1 !== undefined && msg.meat1 !== -1;
+    var meat2Valid = msg.meat2 !== null && msg.meat2 !== undefined && msg.meat2 !== -1;
+
+    if (meat1Target && meat1Valid && !notifyMeat1Fired && msg.meat1 >= meat1Target) {
+      notifyMeat1Fired = true;
+      playAlarmBeep();
+      sendNotification('Meat 1 Target Reached', 'Meat 1 is at ' + formatTemp(msg.meat1) + unitLabel() + ' (target: ' + formatTemp(meat1Target) + unitLabel() + ')');
+    }
+
+    if (meat2Target && meat2Valid && !notifyMeat2Fired && msg.meat2 >= meat2Target) {
+      notifyMeat2Fired = true;
+      playAlarmBeep();
+      sendNotification('Meat 2 Target Reached', 'Meat 2 is at ' + formatTemp(msg.meat2) + unitLabel() + ' (target: ' + formatTemp(meat2Target) + unitLabel() + ')');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Resize Handler
   // ---------------------------------------------------------------------------
   var resizeTimeout;
@@ -899,11 +1292,35 @@
     restoreCookTimer();
     initControls();
     initChart();
+    initLegendToggles();
+    syncLegendClasses();
     wsConnect();
+
+    // Notification bell
+    dom.btnNotify.addEventListener('click', toggleNotifications);
+    syncNotifyButton();
+
+    // If notifications were restored from prefs, pre-create AudioContext on
+    // first user interaction so the alarm beep works even without re-clicking
+    // the bell.  Browsers require a user gesture to start audio playback.
+    if (notifyEnabled) {
+      var unlockAudio = function () {
+        ensureAudioContext();
+        document.removeEventListener('click', unlockAudio, true);
+        document.removeEventListener('touchstart', unlockAudio, true);
+      };
+      document.addEventListener('click', unlockAudio, true);
+      document.addEventListener('touchstart', unlockAudio, true);
+    }
 
     // Toggle button listeners
     dom.btnToggleUnits.addEventListener('click', toggleUnits);
     dom.btnToggleTime.addEventListener('click', toggleTimeFormat);
+
+    // Settings panel listeners
+    dom.btnSettings.addEventListener('click', openSettings);
+    dom.btnCloseSettings.addEventListener('click', closeSettings);
+    dom.settingsOverlay.addEventListener('click', closeSettings);
 
     // Cook timer tick
     cookTimerInterval = setInterval(tickCookTimer, 1000);
