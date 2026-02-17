@@ -58,6 +58,7 @@
     dom.settingsOverlay = document.getElementById('settingsOverlay');
     dom.pitTemp = document.getElementById('pitTemp');
     dom.pitSetpoint = document.getElementById('pitSetpoint');
+    dom.pitPrediction = document.getElementById('pitPrediction');
     dom.meat1Temp = document.getElementById('meat1Temp');
     dom.meat1Target = document.getElementById('meat1Target');
     dom.meat2Temp = document.getElementById('meat2Temp');
@@ -823,7 +824,32 @@
     };
   }
 
+  function updatePitPrediction() {
+    if (!pitSetpoint || chartData[0].length < MIN_PREDICTION_POINTS) {
+      dom.pitPrediction.textContent = chartData[0].length > 0 ? 'Calculating...' : '';
+      return;
+    }
+
+    var last = chartData[1][chartData[1].length - 1];
+    if (last !== null && last >= pitSetpoint) {
+      dom.pitPrediction.textContent = '';
+      return;
+    }
+
+    var pred = predictDoneTime(1, pitSetpoint);
+    if (!pred) {
+      dom.pitPrediction.textContent = 'Calculating...';
+      return;
+    }
+
+    var doneDate = new Date(pred.doneTime * 1000);
+    var remaining = pred.doneTime - (latestServerTs || Math.floor(Date.now() / 1000));
+    var remStr = remaining > 0 ? formatRemaining(remaining) : 'Done';
+    dom.pitPrediction.textContent = formatClockTime(doneDate) + ' (' + remStr + ')';
+  }
+
   function updatePredictions() {
+    updatePitPrediction();
     updateSinglePrediction(2, meat1Target, dom.meat1Prediction);
     updateSinglePrediction(3, meat2Target, dom.meat2Prediction);
   }
