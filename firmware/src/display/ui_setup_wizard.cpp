@@ -1,21 +1,12 @@
 #include "ui_setup_wizard.h"
 
-#ifndef NATIVE_BUILD
+#if !defined(NATIVE_BUILD) || defined(SIMULATOR_BUILD)
 
 #include <lvgl.h>
 #include <stdio.h>
 #include <cstring>
 
-// --------------------------------------------------------------------------
-// Color constants
-// --------------------------------------------------------------------------
-
-#define COLOR_BG         lv_color_hex(0x1A1A1A)
-#define COLOR_CARD_BG    lv_color_hex(0x2A2A2A)
-#define COLOR_TEXT        lv_color_hex(0xFFFFFF)
-#define COLOR_TEXT_DIM    lv_color_hex(0x888888)
-#define COLOR_ORANGE      lv_color_hex(0xFF6600)
-#define COLOR_GREEN       lv_color_hex(0x33CC33)
+#include "ui_colors.h"
 
 // --------------------------------------------------------------------------
 // State
@@ -477,8 +468,8 @@ void ui_wizard_update_probes(float pit, float meat1, float meat2,
     }
 }
 
-#else
-// Native build stubs
+#else // NATIVE_BUILD && !SIMULATOR_BUILD
+// Native test stubs
 void ui_wizard_init() {}
 bool ui_wizard_is_active() { return false; }
 void ui_wizard_set_callbacks(WizardFanTestCb, WizardServoTestCb,

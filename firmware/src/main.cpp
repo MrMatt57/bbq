@@ -15,6 +15,9 @@
 #include "wifi_manager.h"
 #include "web_server.h"
 #include "ota_manager.h"
+#include "display/ui_init.h"
+#include "display/ui_update.h"
+#include "display/ui_setup_wizard.h"
 
 // --- Module instances ---
 TempManager     tempManager;
@@ -68,6 +71,45 @@ static uint8_t cb_getFlags() {
         if (activeAlarms[i] == AlarmType::MEAT2_DONE) flags |= DP_FLAG_ALARM_MEAT2;
     }
     return flags;
+}
+
+// --- Display timing ---
+static unsigned long g_lastDisplayMs = 0;
+static unsigned long g_lastGraphMs   = 0;
+
+// --- UI callbacks ---
+static void ui_cb_setpoint(float sp) {
+    g_setpoint = sp;
+}
+
+static void ui_cb_meat_target(uint8_t probe, float target) {
+    if (probe == 1) alarmManager.setMeat1Target(target);
+    if (probe == 2) alarmManager.setMeat2Target(target);
+}
+
+static void ui_cb_alarm_ack() {
+    alarmManager.acknowledge();
+}
+
+static void ui_cb_units(bool isFahrenheit) {
+    configManager.setUnits(isFahrenheit ? "F" : "C");
+    tempManager.setUseFahrenheit(isFahrenheit);
+}
+
+static void ui_cb_fan_mode(const char* mode) {
+    configManager.setFanMode(mode);
+}
+
+static void ui_cb_new_session() {
+    cookSession.endSession();
+    cookSession.startSession();
+    g_cookStartTime = 0;
+    g_pitReached = false;
+}
+
+static void ui_cb_factory_reset() {
+    configManager.factoryReset();
+    ESP.restart();
 }
 
 // ---------------------------------------------------------------------------
@@ -133,12 +175,25 @@ void setup() {
     cookSession.setDataSources(cb_getPitTemp, cb_getMeat1Temp, cb_getMeat2Temp,
                                cb_getFanPct, cb_getDamperPct, cb_getFlags);
 
-    // 13. Log "Setup complete" with IP address
+    // 13. Initialize LVGL touchscreen display
+    ui_init();
+    ui_set_callbacks(ui_cb_setpoint, ui_cb_meat_target, ui_cb_alarm_ack);
+    ui_set_settings_callbacks(ui_cb_units, ui_cb_fan_mode, ui_cb_new_session, ui_cb_factory_reset);
+
+    // Set initial display state
+    ui_update_setpoint(g_setpoint);
+    ui_update_meat1_target(alarmManager.getMeat1Target());
+    ui_update_meat2_target(alarmManager.getMeat2Target());
+    ui_update_settings_state(configManager.isFahrenheit(), configManager.getFanMode());
+
+    // 14. Log "Setup complete" with IP address
     Serial.println();
     Serial.printf("[BOOT] Setup complete. IP: %s\n", wifiManager.getIPAddress());
     Serial.println();
 
     g_lastPidMs = millis();
+    g_lastDisplayMs = millis();
+    g_lastGraphMs = millis();
 }
 
 // ---------------------------------------------------------------------------
@@ -222,6 +277,60 @@ void loop() {
 
     // 10. OTA manager (handles OTA progress)
     otaManager.update();
+
+    // 11. LVGL display update (~1 Hz for data, ~5s for graph)
+    if (now - g_lastDisplayMs >= 1000) {
+        g_lastDisplayMs = now;
+
+        ui_update_temps(tempManager.getPitTemp(),
+                        tempManager.getMeat1Temp(),
+                        tempManager.getMeat2Temp(),
+                        tempManager.isConnected(PROBE_PIT),
+                        tempManager.isConnected(PROBE_MEAT1),
+                        tempManager.isConnected(PROBE_MEAT2));
+
+        ui_update_setpoint(g_setpoint);
+        ui_update_output_bars(fanController.getCurrentSpeedPct(),
+                              servoController.getCurrentPositionPct());
+
+        // Cook timer
+        uint32_t elapsed = g_cookStartTime > 0 ? (uint32_t)(millis() / 1000) - g_cookStartTime : (uint32_t)(millis() / 1000);
+        ui_update_cook_timer(g_cookStartTime, elapsed, 0);
+
+        // WiFi status
+        ui_update_wifi(wifiManager.isConnected());
+
+        // Alerts
+        AlarmType activeAlarms[MAX_ACTIVE_ALARMS];
+        uint8_t alarmCount = alarmManager.getActiveAlarms(activeAlarms, MAX_ACTIVE_ALARMS);
+        uint8_t topAlarm = 0;
+        for (uint8_t i = 0; i < alarmCount; i++) {
+            topAlarm = (uint8_t)activeAlarms[i];
+            break; // Take the first active alarm
+        }
+        uint8_t probeErrors = 0;
+        if (tempManager.getStatus(PROBE_PIT) != ProbeStatus::OK)   probeErrors |= 0x01;
+        if (tempManager.getStatus(PROBE_MEAT1) != ProbeStatus::OK) probeErrors |= 0x02;
+        if (tempManager.getStatus(PROBE_MEAT2) != ProbeStatus::OK) probeErrors |= 0x04;
+        ui_update_alerts(topAlarm, pidController.isLidOpen(), errorManager.isFireOut(), probeErrors);
+
+        // Meat targets
+        ui_update_meat1_target(alarmManager.getMeat1Target());
+        ui_update_meat2_target(alarmManager.getMeat2Target());
+    }
+
+    // Graph update (every 5 seconds)
+    if (now - g_lastGraphMs >= 5000) {
+        g_lastGraphMs = now;
+        ui_update_graph(tempManager.getPitTemp(),
+                        tempManager.getMeat1Temp(),
+                        tempManager.getMeat2Temp());
+        ui_update_graph_setpoint(g_setpoint);
+    }
+
+    // 12. LVGL tick and task handler
+    ui_tick(10);
+    ui_handler();
 
     // Yield to FreeRTOS / keep loop at ~100 Hz
     delay(10);
