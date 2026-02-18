@@ -107,6 +107,16 @@ void PidController::setTunings(float kp, float ki, float kd) {
 #endif
 }
 
+void PidController::resetIntegrator() {
+#ifndef NATIVE_BUILD
+    if (_pid != nullptr) {
+        _pid->Reset();
+        _pid->SetMode(QuickPID::Control::automatic);
+    }
+    Serial.println("[PID] Integrator reset (setpoint change)");
+#endif
+}
+
 bool PidController::isLidOpen() const {
     return _lidState == LidState::OPEN;
 }

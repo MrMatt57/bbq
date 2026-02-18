@@ -1,7 +1,7 @@
 {
   "name": "pitclaw-simulator",
   "version": "1.0.0",
-  "description": "Pit Claw temperature controller simulator for web UI development",
+  "description": "DEPRECATED - Use 'pio run -e simulator' instead. See firmware/src/simulator/.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

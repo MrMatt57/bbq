@@ -19,15 +19,16 @@ jobs:
       - name: Compute version tag
         id: version
         run: |
-          DATE_TAG=$(date -u +"%Y.%-m.%-d")
-          BUILD_NUM=1
+          YEAR=$(date -u +"%Y")
+          MONTH=$(date -u +"%-m")
+          PATCH=0
 
-          # Check for existing tags on the same day
-          while git tag -l "v${DATE_TAG}-beta.${BUILD_NUM}" | grep -q .; do
-            BUILD_NUM=$((BUILD_NUM + 1))
+          # Find next available patch number for this month
+          while git tag -l "v${YEAR}.${MONTH}.${PATCH}" | grep -q .; do
+            PATCH=$((PATCH + 1))
           done
 
-          VERSION="${DATE_TAG}-beta.${BUILD_NUM}"
+          VERSION="${YEAR}.${MONTH}.${PATCH}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Version: ${VERSION}"
@@ -67,6 +68,12 @@ jobs:
           cp firmware/.pio/build/wt32_sc01_plus/firmware.bin "release/pitclaw-firmware-${VERSION}.bin"
           cp firmware/.pio/build/wt32_sc01_plus/littlefs.bin "release/pitclaw-littlefs-${VERSION}.bin"
 
+          # Generate SHA-256 checksums
+          cd release
+          sha256sum "pitclaw-firmware-${VERSION}.bin" > "pitclaw-firmware-${VERSION}.sha256"
+          sha256sum "pitclaw-littlefs-${VERSION}.bin" > "pitclaw-littlefs-${VERSION}.sha256"
+          cd ..
+
           # Include STL files if they exist
           if ls enclosure/stl/*.stl 1>/dev/null 2>&1; then
             cp enclosure/stl/*.stl release/
@@ -78,5 +85,4 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Pit Claw ${{ steps.version.outputs.tag }}
           generate_release_notes: true
-          prerelease: true
           files: release/*

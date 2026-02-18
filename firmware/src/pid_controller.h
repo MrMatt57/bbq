@@ -41,6 +41,9 @@ public:
     // Lid-open detection
     bool isLidOpen() const;
 
+    // Reset integrator for bumpless transfer on setpoint change
+    void resetIntegrator();
+
     // Enable or disable PID computation
     void setEnabled(bool enabled);
     bool isEnabled() const;

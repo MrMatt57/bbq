@@ -9,10 +9,12 @@ BBQ Temperature Monitor & Controller — an ESP32-S3 based device with 3.5" touc
 ## Build & Test Commands
 
 ```bash
-# === Simulator (web UI development, no hardware) ===
-cd simulator && npm run dev                        # http://localhost:3000 with hot-reload
-cd simulator && npm run dev -- --speed 50          # 50x time acceleration
-cd simulator && npm run dev -- --profile stall     # brisket stall scenario
+# === Simulator (touchscreen + web UI, no hardware) ===
+pio run -e simulator                                # Build simulator
+.pio/build/simulator/program                        # Run at http://localhost:3000
+.pio/build/simulator/program --speed 50             # 50x time acceleration
+.pio/build/simulator/program --profile stall        # brisket stall scenario
+.pio/build/simulator/program --port 8080            # custom web port
 
 # === Firmware ===
 pio run -e wt32_sc01_plus                          # Build firmware
@@ -21,7 +23,7 @@ pio run -e wt32_sc01_plus --target uploadfs         # Upload web UI to LittleFS
 
 # === Tests ===
 pio test -e native                                  # Desktop unit tests (no hardware)
-pio test -e native --filter test_pid                # Single test suite
+pio test -e native --filter test_desktop/test_pid    # Single test suite
 pio test -e wt32_sc01_plus                          # On-device integration tests
 
 # === Utilities ===
@@ -105,14 +107,14 @@ Connections off the carrier board (short wire runs):
 - **PID**: QuickPID library (pOnMeas, dOnMeas, iAwCondition anti-windup)
 - **File System**: LittleFS (cook session, web assets, config.json)
 - **Testing**: Unity framework, dual envs (native for logic, embedded for hardware)
-- **Simulator**: Node.js desktop server for web UI development without hardware
+- **Simulator**: SDL2 + mongoose desktop build for touchscreen + web UI development without hardware
 
 ### Source Layout
 
 ```
 firmware/
   src/
-    main.cpp                    # Setup, main loop, FreeRTOS task init
+    main.cpp                    # Setup + main loop (Arduino setup/loop pattern)
     config.h                    # Pin assignments, constants, defaults
     config_manager.h/.cpp       # Load/save config.json on LittleFS, defaults, factory reset
     wifi_manager.h/.cpp         # WiFiManager captive portal, mDNS, auto-reconnect
@@ -125,85 +127,84 @@ firmware/
     alarm_manager.h/.cpp        # Threshold logic, hysteresis, buzzer + web alarm triggers
     cook_session.h/.cpp         # Session state, circular buffer, LittleFS persistence
     error_manager.h/.cpp        # Probe disconnect/short, fan stall, fire-out detection
+    web_protocol.h/.cpp         # Shared WebSocket protocol (message building/parsing)
     web_server.h/.cpp           # ESPAsyncWebServer setup, REST + WebSocket handlers
     display/
       ui_init.h/.cpp            # LVGL screen setup (main dashboard, graph, settings)
       ui_update.h/.cpp          # Real-time widget updates
       ui_setup_wizard.h/.cpp    # First-boot setup wizard screens
+      ui_colors.h               # Shared LVGL color constants
+      graph_history.h/.cpp      # Adaptive-condensing graph history buffer
+    simulator/                  # Desktop simulator (PIO native build)
+      sim_main.cpp              # SDL2 + mongoose main loop
+      sim_thermal.h/.cpp        # Charcoal smoker physics simulation
+      sim_profiles.h            # Pre-built cook profiles
+      sim_web_server.h/.cpp     # Mongoose HTTP + WebSocket server
+      mongoose.h/.c             # Mongoose embedded web server library
   data/                         # Web UI files (uploaded to LittleFS)
     index.html
     app.js
     style.css
     manifest.json               # PWA manifest (icon, name, theme color)
+    favicon.svg
     sw.js                       # Service worker for PWA offline shell
+  sdl2_setup.py                 # PlatformIO extra script for SDL2 simulator build
   test/
-    test_desktop/               # Native tests (PID, predictor, alarm, session, config)
-    test_embedded/              # On-device tests (ADC, fan, servo)
+    test_desktop/               # Native tests (PID, predictor, alarm, fan_logic, temp_conversion)
+    test_embedded/              # On-device tests (ADC, fan_pwm, servo, buzzer, i2c)
   platformio.ini
-simulator/                      # Desktop cook simulator for web UI development
-  server.js                     # Express + WebSocket server, serves firmware/data/
-  thermal-model.js              # Simplified charcoal smoker physics simulation
-  profiles.js                   # Pre-built cook profiles (see below)
-  package.json                  # Dependencies: express, ws, nodemon, browser-sync
 enclosure/
   bbq-case.scad                 # Controller enclosure (front bezel, rear shell, kickstand)
   bbq-fan-assembly.scad         # Fan + damper + UDS adapter
   README.md                     # Print settings, assembly notes, hardware (screws, inserts, clamps)
-  stl/                          # Pre-exported STL files
-    front-bezel.stl
-    rear-shell.stl
-    kickstand.stl
-    blower-housing.stl
-    uds-pipe-adapter.stl
+  stl/                          # Export STLs here from OpenSCAD
+docs/                           # Project media and documentation assets
+scripts/                        # Developer setup scripts (setup-dev.ps1)
+.github/workflows/              # CI (ci.yml) and release (release.yml) workflows
 ```
 
 ### Cook Simulator (Desktop)
 
-Node.js server that simulates the ESP32 for web UI development. Speaks the identical WebSocket protocol — the web UI cannot distinguish between the simulator and real hardware.
+PlatformIO native build that runs the LVGL touchscreen UI in an SDL2 window and serves the web UI via an embedded web server (mongoose). Uses the same C++ thermal model and shared WebSocket protocol as the firmware — one source of truth.
 
 ```bash
-# Start simulator with hot-reload (web UI auto-refreshes on file changes)
-cd simulator
-npm install        # first time only
-npm run dev        # starts on http://localhost:3000
+# Build and run
+pio run -e simulator
+.pio/build/simulator/program                    # SDL2 window + http://localhost:3000
 
-# Start with time acceleration
-npm run dev -- --speed 10     # 10x speed (1 hour of cook in 6 minutes)
-npm run dev -- --speed 50     # 50x speed (12-hour cook in ~15 minutes)
-npm run dev -- --profile stall  # use the brisket stall profile
+# With options
+.pio/build/simulator/program --speed 10         # 10x speed
+.pio/build/simulator/program --speed 50         # 50x speed (12-hour cook in ~15 minutes)
+.pio/build/simulator/program --profile stall    # brisket stall scenario
+.pio/build/simulator/program --port 8080        # custom web server port
 ```
 
 **How it works:**
-- Express serves the web UI files directly from `firmware/data/` (same files that go on the ESP32)
-- WebSocket on the same port sends simulated data using the identical JSON protocol
-- `nodemon` watches `simulator/` for server code changes → auto-restarts
-- `browser-sync` proxies the server and watches `firmware/data/` → auto-refreshes browser on web UI changes
-- Edit `app.js` or `style.css` → browser reloads instantly, no compile, no flash
+- SDL2 window renders the LVGL touchscreen UI (same code as firmware)
+- Embedded mongoose HTTP server serves web UI files from `firmware/data/`
+- WebSocket on the same port sends simulated data using the shared protocol (`web_protocol.cpp`)
+- Shared C++ thermal model (`sim_thermal.cpp`) drives both the touchscreen and web UIs
+- Edit `app.js` or `style.css` → refresh browser manually (no compile needed for web UI changes)
 
 **Thermal model** simulates:
 - Charcoal fire with thermal mass and heat decay
 - PID-like response to fan/damper output (simplified, not exact PID — just realistic curves)
 - Meat temperature rise with configurable thermal properties
-- Setpoint changes from the web UI are processed by the simulator and affect the simulated pit temp
+- Setpoint changes from either UI (touchscreen or web) affect the simulated pit temp
 
-**Pre-built cook profiles** (`profiles.js`):
+**Pre-built cook profiles** (`sim_profiles.h`):
 
 | Profile | Description | Simulated duration (real time at 1x) |
 |---------|-------------|--------------------------------------|
-| `normal` | 225°F pit, pork butt to 203°F, smooth rise | ~10 hours |
-| `stall` | 225°F pit, brisket with 150-170°F stall plateau | ~14 hours |
-| `hot-fast` | 300°F pit, chicken thighs to 185°F, fast cook | ~2 hours |
-| `temp-change` | Start at 225°F, bump to 275°F mid-cook | ~8 hours |
+| `normal` | 225F pit, pork butt to 203F, smooth rise | ~10 hours |
+| `stall` | 225F pit, brisket with 150-170F stall plateau | ~14 hours |
+| `hot-fast` | 300F pit, chicken thighs to 185F, fast cook | ~2 hours |
+| `temp-change` | Start at 225F, bump to 275F mid-cook | ~8 hours |
 | `lid-open` | Normal cook with periodic lid-open temp drops | ~10 hours |
 | `fire-out` | Normal cook, fire dies at 4 hours (pit temp declines) | ~6 hours |
 | `probe-disconnect` | Normal cook, meat1 probe disconnects at 3 hours | ~10 hours |
 
-**Simulator-only controls** (not in the real firmware):
-- Time acceleration factor (adjustable at runtime via query param or WebSocket command)
-- Jump to a point in the cook (skip ramp-up, jump to stall, etc.)
-- Inject events (lid open, probe disconnect, fire out) on demand
-
-**Key constraint**: The web UI code in `firmware/data/` must work identically on both the simulator and the real ESP32. No simulator-specific code in the web UI — the abstraction boundary is the WebSocket protocol.
+**Key constraint**: The web UI code in `firmware/data/` must work identically on both the simulator and the real ESP32. No simulator-specific code in the web UI — the abstraction boundary is the WebSocket protocol (`web_protocol.h/.cpp`).
 
 ### Configuration Persistence
 
@@ -456,12 +457,21 @@ The chart always shows a projected curve for each meat probe from the current te
 ### WebSocket Protocol
 
 ```json
-// Server → Client (every 1-2s)
-{"type":"data","ts":1707600000,"pit":225.5,"meat1":145.2,"meat2":98.7,"fan":45,"damper":80,"sp":225,"lid":false,"est":1707614400,"errors":[]}
+// Server → Client: periodic data (every 1-2s)
+{"type":"data","ts":1707600000,"pit":225.5,"meat1":145.2,"meat2":98.7,"fan":45,"damper":80,"sp":225,"lid":false,"est":1707614400,"meat1Target":203,"meat2Target":null,"errors":[]}
+
+// Server → Client: history dump (on connect)
+{"type":"history","sp":225,"meat1Target":203,"meat2Target":null,"data":[[ts,pit,meat1,meat2,fan,damper],...]}
+
+// Server → Client: session reset confirmation
+{"type":"session","action":"reset","sp":225}
+
+// Server → Client: CSV download response
+{"type":"session","action":"download","format":"csv","data":"timestamp,pit,meat1,...\n..."}
 
 // Client → Server
 {"type":"set","sp":250}
-{"type":"alarm","meat1Target":203}
+{"type":"alarm","meat1Target":203,"meat2Target":185,"pitBand":15}
 {"type":"session","action":"new"}
 {"type":"session","action":"download","format":"csv"}
 ```

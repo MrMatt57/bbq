@@ -17,6 +17,9 @@ simulator/session.dat
 Thumbs.db
 nul
 
+# Claude Code
+.claude/
+
 # IDE
 *.swp
 *.swo

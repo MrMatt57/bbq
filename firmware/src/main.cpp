@@ -34,6 +34,7 @@ OtaManager      otaManager;
 
 // --- Control state ---
 static float    g_setpoint       = 225.0f;   // Default pit setpoint (degrees F)
+static float    g_prevSetpoint   = 225.0f;   // Previous setpoint for change detection
 static bool     g_pitReached     = false;     // Has pit ever reached setpoint?
 static uint32_t g_cookStartTime  = 0;         // Epoch when cook timer started
 static unsigned long g_lastPidMs = 0;         // Last PID computation timestamp
@@ -73,6 +74,32 @@ static uint8_t cb_getFlags() {
     return flags;
 }
 
+// --- WebSocket command callbacks ---
+static void ws_onSetpoint(float sp) {
+    g_setpoint = sp;
+}
+
+static void ws_onAlarm(const char* probe, float target) {
+    if (strcmp(probe, "meat1") == 0)      alarmManager.setMeat1Target(target);
+    else if (strcmp(probe, "meat2") == 0) alarmManager.setMeat2Target(target);
+    else if (strcmp(probe, "pitBand") == 0) alarmManager.setPitBand(target);
+}
+
+static void ws_onFanMode(const char* mode) {
+    configManager.setFanMode(mode);
+    ui_update_settings_state(configManager.isFahrenheit(), configManager.getFanMode());
+}
+
+static void ws_onSession(const char* action, const char* format) {
+    if (strcmp(action, "new") == 0) {
+        cookSession.endSession();
+        cookSession.startSession();
+        g_cookStartTime = 0;
+        g_pitReached = false;
+        ui_graph_clear();
+    }
+}
+
 // --- Display timing ---
 static unsigned long g_lastDisplayMs = 0;
 static unsigned long g_lastGraphMs   = 0;
@@ -105,11 +132,22 @@ static void ui_cb_new_session() {
     cookSession.startSession();
     g_cookStartTime = 0;
     g_pitReached = false;
+    ui_graph_clear();
 }
 
 static void ui_cb_factory_reset() {
     configManager.factoryReset();
     ESP.restart();
+}
+
+static void ui_cb_wifi_action(const char* action) {
+    if (strcmp(action, "disconnect") == 0) {
+        wifiManager.disconnect();
+    } else if (strcmp(action, "reconnect") == 0) {
+        wifiManager.reconnect();
+    } else if (strcmp(action, "setup_ap") == 0) {
+        wifiManager.startAP();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +204,10 @@ void setup() {
     webServer.setModules(&tempManager, &pidController, &fanController,
                          &servoController, &configManager, &cookSession,
                          &alarmManager, &errorManager);
+    webServer.onSetpoint(ws_onSetpoint);
+    webServer.onAlarm(ws_onAlarm);
+    webServer.onSession(ws_onSession);
+    webServer.onFanMode(ws_onFanMode);
 
     // 11. Initialize OTA updates (needs the AsyncWebServer to register /update route)
     otaManager.begin(webServer.getAsyncServer());
@@ -179,12 +221,32 @@ void setup() {
     ui_init();
     ui_set_callbacks(ui_cb_setpoint, ui_cb_meat_target, ui_cb_alarm_ack);
     ui_set_settings_callbacks(ui_cb_units, ui_cb_fan_mode, ui_cb_new_session, ui_cb_factory_reset);
+    ui_set_wifi_callback(ui_cb_wifi_action);
 
     // Set initial display state
     ui_update_setpoint(g_setpoint);
     ui_update_meat1_target(alarmManager.getMeat1Target());
     ui_update_meat2_target(alarmManager.getMeat2Target());
     ui_update_settings_state(configManager.isFahrenheit(), configManager.getFanMode());
+
+    // Pre-populate graph from recovered session data
+    {
+        uint32_t sessionPoints = cookSession.getTotalPointCount();
+        for (uint32_t i = 0; i < sessionPoints; i++) {
+            const DataPoint* dp = cookSession.getPoint(i);
+            if (dp) {
+                ui_graph_add_point(
+                    dp->pitTemp / 10.0f,
+                    dp->meat1Temp / 10.0f,
+                    dp->meat2Temp / 10.0f,
+                    g_setpoint,
+                    (dp->flags & DP_FLAG_PIT_DISC) != 0,
+                    (dp->flags & DP_FLAG_MEAT1_DISC) != 0,
+                    (dp->flags & DP_FLAG_MEAT2_DISC) != 0
+                );
+            }
+        }
+    }
 
     // 14. Log "Setup complete" with IP address
     Serial.println();
@@ -209,34 +271,66 @@ void loop() {
     if (now - g_lastPidMs >= PID_SAMPLE_MS) {
         g_lastPidMs = now;
 
-        float pitTemp = tempManager.getPitTemp();
-        pidController.compute(pitTemp, g_setpoint);
+        // Reset integrator on setpoint change for bumpless transfer
+        if (g_setpoint != g_prevSetpoint) {
+            pidController.resetIntegrator();
+            g_pitReached = false;  // Suppress pit-band alarms during ramp to new setpoint
+            g_prevSetpoint = g_setpoint;
+        }
 
-        // Track whether pit has ever reached setpoint (within 5 degrees F).
-        // Once set, stays true for the duration of the cook so that ramp-up
-        // alarms are suppressed until initial approach is complete.
-        if (!g_pitReached && tempManager.isConnected(PROBE_PIT)) {
-            if (fabsf(pitTemp - g_setpoint) <= 5.0f) {
-                g_pitReached = true;
+        // Only compute PID when pit probe is connected. When disconnected,
+        // _pidOutput retains its last value to maintain current fire management.
+        if (tempManager.isConnected(PROBE_PIT)) {
+            float pitTemp = tempManager.getPitTemp();
+            pidController.compute(pitTemp, g_setpoint);
+
+            // Track whether pit has ever reached setpoint (within 5 degrees F).
+            if (!g_pitReached) {
+                if (fabsf(pitTemp - g_setpoint) <= 5.0f) {
+                    g_pitReached = true;
+                }
             }
         }
     }
 
-    // 3. Split-range fan + damper from PID output
+    // 3. Mode-aware fan + damper from PID output (split-range coordination)
     {
         float pidOutput = pidController.getOutput();
+        const char* fanMode = configManager.getFanMode();
+        float threshold = configManager.getFanOnThreshold();
 
-        // Damper: linear map of PID output 0-100%
-        servoController.setPosition(pidOutput);
-
-        // Fan: only activates above FAN_ON_THRESHOLD
         float fanPct = 0.0f;
-        if (pidOutput > static_cast<float>(FAN_ON_THRESHOLD)) {
-            // Scale the portion above threshold into full fan range 0-100%
-            fanPct = (pidOutput - static_cast<float>(FAN_ON_THRESHOLD))
-                   / (100.0f - static_cast<float>(FAN_ON_THRESHOLD))
-                   * 100.0f;
+        float damperPct = 0.0f;
+
+        if (strcmp(fanMode, "fan_only") == 0) {
+            // Fan gets full PID output, damper parked fully open
+            fanPct = pidOutput;
+            damperPct = 100.0f;
+        } else if (strcmp(fanMode, "damper_primary") == 0) {
+            // Damper handles steady-state alone. Fan only activates when
+            // damper can't keep up (threshold minimum 50%). When fan does
+            // activate, damper opens to 100% so fan isn't fighting a
+            // restricted inlet.
+            float dpThreshold = fmaxf(threshold, 50.0f);
+            damperPct = pidOutput;
+            if (pidOutput > dpThreshold) {
+                fanPct = (pidOutput - dpThreshold)
+                       / (100.0f - dpThreshold)
+                       * 100.0f;
+                damperPct = 100.0f;  // Open damper fully when fan is active
+            }
+        } else {
+            // fan_and_damper (default): damper tracks PID linearly,
+            // fan activates above configurable threshold and scales 0-100%
+            damperPct = pidOutput;
+            if (pidOutput > threshold) {
+                fanPct = (pidOutput - threshold)
+                       / (100.0f - threshold)
+                       * 100.0f;
+            }
         }
+
+        servoController.setPosition(damperPct);
         fanController.setSpeed(fanPct);
     }
 
@@ -293,12 +387,35 @@ void loop() {
         ui_update_output_bars(fanController.getCurrentSpeedPct(),
                               servoController.getCurrentPositionPct());
 
-        // Cook timer
-        uint32_t elapsed = g_cookStartTime > 0 ? (uint32_t)(millis() / 1000) - g_cookStartTime : (uint32_t)(millis() / 1000);
-        ui_update_cook_timer(g_cookStartTime, elapsed, 0);
+        // Cook timer — starts when first meat probe connects
+        if (g_cookStartTime == 0) {
+            if (tempManager.isConnected(PROBE_MEAT1) || tempManager.isConnected(PROBE_MEAT2)) {
+                g_cookStartTime = (uint32_t)(millis() / 1000);
+            }
+        }
+        {
+            uint32_t elapsed = g_cookStartTime > 0
+                ? (uint32_t)(millis() / 1000) - g_cookStartTime
+                : 0;
+            ui_update_cook_timer(0, elapsed, 0);
+        }
 
         // WiFi status
-        ui_update_wifi(wifiManager.isConnected());
+        ui_update_wifi(wifiManager.isConnected() || wifiManager.isAPMode());
+
+        // WiFi info on settings screen
+        {
+            static String ssidStr, ipStr;
+            ssidStr = wifiManager.getSSID();
+            ipStr = wifiManager.getIPAddress();
+            WifiInfo winfo;
+            winfo.connected = wifiManager.isConnected();
+            winfo.apMode = wifiManager.isAPMode();
+            winfo.ssid = ssidStr.c_str();
+            winfo.ip = ipStr.c_str();
+            winfo.rssi = wifiManager.getRSSI();
+            ui_update_wifi_info(winfo);
+        }
 
         // Alerts
         AlarmType activeAlarms[MAX_ACTIVE_ALARMS];
@@ -322,10 +439,13 @@ void loop() {
     // Graph update (every 5 seconds)
     if (now - g_lastGraphMs >= 5000) {
         g_lastGraphMs = now;
-        ui_update_graph(tempManager.getPitTemp(),
-                        tempManager.getMeat1Temp(),
-                        tempManager.getMeat2Temp());
-        ui_update_graph_setpoint(g_setpoint);
+        ui_graph_add_point(tempManager.getPitTemp(),
+                           tempManager.getMeat1Temp(),
+                           tempManager.getMeat2Temp(),
+                           g_setpoint,
+                           !tempManager.isConnected(PROBE_PIT),
+                           !tempManager.isConnected(PROBE_MEAT1),
+                           !tempManager.isConnected(PROBE_MEAT2));
     }
 
     // 12. LVGL tick and task handler

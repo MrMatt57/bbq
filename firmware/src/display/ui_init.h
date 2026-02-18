@@ -22,6 +22,7 @@ typedef void (*UiUnitsCb)(bool isFahrenheit);
 typedef void (*UiFanModeCb)(const char* mode);
 typedef void (*UiNewSessionCb)();
 typedef void (*UiFactoryResetCb)();
+typedef void (*UiWifiActionCb)(const char* action);  // "disconnect", "reconnect", "setup_ap"
 
 // Initialize LVGL display driver, touch input, and create all screens.
 // Call once from setup() after all other modules are initialized.
@@ -45,3 +46,6 @@ void ui_set_callbacks(UiSetpointCb sp, UiMeatTargetCb meat, UiAlarmAckCb ack);
 // Set callbacks for settings screen actions
 void ui_set_settings_callbacks(UiUnitsCb units, UiFanModeCb fan,
                                 UiNewSessionCb session, UiFactoryResetCb reset);
+
+// Set callback for Wi-Fi action buttons (Disconnect/Reconnect/Setup Mode)
+void ui_set_wifi_callback(UiWifiActionCb cb);

@@ -2,6 +2,7 @@
 
 #include "sim_profiles.h"
 #include <cmath>
+#include <cstring>
 
 // Result of a thermal model update step
 struct SimResult {
@@ -26,8 +27,8 @@ public:
     float meat2Temp;
     float ambientTemp;
     float setpoint;
-    float fanPercent;
-    float damperPercent;
+    float fanPercent;      // Effective fan output after split-range
+    float damperPercent;   // Effective damper output after split-range
     float fireEnergy;
     bool fireOut;
     bool lidOpen;
@@ -36,9 +37,16 @@ public:
     bool meat2Connected;
     float simTime;
 
+    // Fan mode configuration
+    char fanMode[20];
+    float fanOnThreshold;
+
     SimThermalModel();
     void init(const SimProfile& profile);
     SimResult update(float dt);
+
+    void setFanMode(const char* mode);
+    void setFanOnThreshold(float threshold);
 
 private:
     // Internal state

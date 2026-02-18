@@ -33,12 +33,19 @@ public:
     /// Current IP address as a human-readable string.
     String getIPAddress() const;
 
+    /// SSID of the connected network (STA), AP name (AP mode), or empty string.
+    String getSSID() const;
+
     /// Signal strength in dBm (STA mode only).
     int getRSSI() const;
 
     /// Returns the QR code data string for the AP setup network.
     /// Format: WIFI:T:WPA;S:BBQ-Setup;P:bbqsetup;;
     String getAPQRCodeData() const;
+
+    /// Disconnect from Wi-Fi and stop auto-reconnect.
+    /// User must call reconnect() or startAP() to resume.
+    void disconnect();
 
     /// Trigger a reconnection attempt.
     void reconnect();

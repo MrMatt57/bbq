@@ -55,12 +55,12 @@
 #define DAMPER_OPEN     90      // Servo angle for full open
 
 // --- Split-Range Fan+Damper ---
-#define FAN_ON_THRESHOLD   30   // Fan activates above 30% PID output
+#define FAN_ON_THRESHOLD   30   // Default fan-on threshold (runtime value from configManager)
 
 // --- Temperature Reading ---
 #define TEMP_SAMPLE_INTERVAL_MS  1000   // Read probes every 1 second
 #define TEMP_AVG_SAMPLES         4      // Average 4 readings
-#define TEMP_EMA_ALPHA           0.3    // EMA smoothing factor
+#define TEMP_EMA_ALPHA           0.2    // EMA smoothing factor (lower = smoother, less derivative noise)
 
 // --- Lid-Open Detection ---
 #define LID_OPEN_DROP_PCT   6    // 6% drop below setpoint triggers lid-open

@@ -7,6 +7,8 @@
 
 #include <lvgl.h>
 #include <stdio.h>
+#include <string.h>
+#include <cstring>
 
 #ifndef SIMULATOR_BUILD
 #include <TFT_eSPI.h>
@@ -93,6 +95,7 @@ lv_chart_series_t* ser_pit   = nullptr;
 lv_chart_series_t* ser_meat1 = nullptr;
 lv_chart_series_t* ser_meat2 = nullptr;
 lv_chart_series_t* ser_setpoint = nullptr;
+lv_obj_t* graph_y_labels[5] = {};
 
 // Settings widgets
 lv_obj_t* btn_units_f       = nullptr;
@@ -100,6 +103,14 @@ lv_obj_t* btn_units_c       = nullptr;
 lv_obj_t* btn_fan_only      = nullptr;
 lv_obj_t* btn_fan_damper    = nullptr;
 lv_obj_t* btn_damper_pri    = nullptr;
+
+// Settings — Wi-Fi info widgets
+lv_obj_t* lbl_wifi_status   = nullptr;
+lv_obj_t* lbl_wifi_ssid     = nullptr;
+lv_obj_t* lbl_wifi_ip       = nullptr;
+lv_obj_t* lbl_wifi_signal   = nullptr;
+lv_obj_t* btn_wifi_action   = nullptr;
+lv_obj_t* lbl_wifi_action   = nullptr;
 
 // Nav bar buttons (per screen, for active tab highlighting)
 static lv_obj_t* nav_btns[3][3] = {}; // [screen_idx][btn_idx]
@@ -137,6 +148,7 @@ static UiUnitsCb       cb_units       = nullptr;
 static UiFanModeCb     cb_fan_mode    = nullptr;
 static UiNewSessionCb  cb_new_session = nullptr;
 static UiFactoryResetCb cb_factory_reset = nullptr;
+static UiWifiActionCb   cb_wifi_action  = nullptr;
 
 void ui_set_callbacks(UiSetpointCb sp, UiMeatTargetCb meat, UiAlarmAckCb ack) {
     cb_setpoint = sp;
@@ -150,6 +162,10 @@ void ui_set_settings_callbacks(UiUnitsCb units, UiFanModeCb fan,
     cb_fan_mode = fan;
     cb_new_session = session;
     cb_factory_reset = reset;
+}
+
+void ui_set_wifi_callback(UiWifiActionCb cb) {
+    cb_wifi_action = cb;
 }
 
 // --------------------------------------------------------------------------
@@ -280,7 +296,7 @@ static void pit_card_click_cb(lv_event_t* e) {
 }
 
 static void create_setpoint_modal() {
-    modal_setpoint = create_modal_overlay(scr_dashboard);
+    modal_setpoint = create_modal_overlay(lv_layer_top());
 
     lv_obj_t* card = lv_obj_create(modal_setpoint);
     lv_obj_set_size(card, 280, 180);
@@ -432,7 +448,7 @@ static void meat2_card_click_cb(lv_event_t* e) {
 }
 
 static void create_meat_target_modal() {
-    modal_meat = create_modal_overlay(scr_dashboard);
+    modal_meat = create_modal_overlay(lv_layer_top());
 
     lv_obj_t* card = lv_obj_create(modal_meat);
     lv_obj_set_size(card, 280, 210);
@@ -549,7 +565,7 @@ static void show_confirm(const char* title, const char* msg, void (*action)()) {
 }
 
 static void create_confirm_modal() {
-    modal_confirm = create_modal_overlay(scr_dashboard);
+    modal_confirm = create_modal_overlay(lv_layer_top());
     lv_obj_t* card = lv_obj_create(modal_confirm);
     lv_obj_set_size(card, 280, 150);
     lv_obj_center(card);
@@ -674,7 +690,7 @@ static void create_dashboard_screen() {
 
     // Damper bar — right half: label + bar
     lbl_damper_bar = lv_label_create(bar_row);
-    lv_label_set_text(lbl_damper_bar, "DMPR 0%");
+    lv_label_set_text(lbl_damper_bar, "DAMPER 0%");
     lv_obj_set_style_text_color(lbl_damper_bar, COLOR_PURPLE, 0);
     lv_obj_set_style_text_font(lbl_damper_bar, &lv_font_montserrat_14, 0);
     lv_obj_set_pos(lbl_damper_bar, 230, 0);
@@ -862,28 +878,26 @@ static void create_graph_screen() {
     lv_obj_set_style_radius(chart_temps, 4, 0);
 
     // Y-axis labels — aligned with chart division lines
-    // Range 50-350, 5 div lines split into 6 sections
-    // Div lines at temps: 300, 250, 200, 150, 100
-    // Chart content area: y = chart_y+6 to chart_y+chart_h-6 (padding=6)
+    // Positions match the 5 horizontal div lines; text updated dynamically by auto-scale
     const int content_top = chart_y + 6;
     const int content_h = chart_h - 12;
     const int y_temps[] = {300, 250, 200, 150, 100};
     for (int i = 0; i < 5; i++) {
-        lv_obj_t* lbl = lv_label_create(scr_graph);
+        graph_y_labels[i] = lv_label_create(scr_graph);
         char buf[8];
         snprintf(buf, sizeof(buf), "%d", y_temps[i]);
-        lv_label_set_text(lbl, buf);
-        lv_obj_set_style_text_color(lbl, COLOR_TEXT_DIM, 0);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+        lv_label_set_text(graph_y_labels[i], buf);
+        lv_obj_set_style_text_color(graph_y_labels[i], COLOR_TEXT_DIM, 0);
+        lv_obj_set_style_text_font(graph_y_labels[i], &lv_font_montserrat_14, 0);
         int line_y = content_top + content_h * (i + 1) / 6;
-        lv_obj_set_pos(lbl, 2, line_y - 7);  // -7 to center 14px font
+        lv_obj_set_pos(graph_y_labels[i], 2, line_y - 7);  // -7 to center 14px font
     }
 
     // Series — order matters for legend
     ser_pit      = lv_chart_add_series(chart_temps, COLOR_ORANGE, LV_CHART_AXIS_PRIMARY_Y);
     ser_meat1    = lv_chart_add_series(chart_temps, COLOR_RED, LV_CHART_AXIS_PRIMARY_Y);
     ser_meat2    = lv_chart_add_series(chart_temps, COLOR_BLUE, LV_CHART_AXIS_PRIMARY_Y);
-    ser_setpoint = lv_chart_add_series(chart_temps, COLOR_ORANGE, LV_CHART_AXIS_PRIMARY_Y);
+    ser_setpoint = lv_chart_add_series(chart_temps, lv_color_hex(0x999999), LV_CHART_AXIS_PRIMARY_Y);
 
     // Legend with colored swatches — positioned just below chart
     lv_obj_t* legend = lv_obj_create(scr_graph);
@@ -911,9 +925,10 @@ static void create_graph_screen() {
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
     };
 
-    add_legend_item(COLOR_ORANGE, "Pit");
-    add_legend_item(COLOR_RED,    "Meat1");
-    add_legend_item(COLOR_BLUE,   "Meat2");
+    add_legend_item(COLOR_ORANGE,        "Pit");
+    add_legend_item(COLOR_RED,           "Meat1");
+    add_legend_item(COLOR_BLUE,          "Meat2");
+    add_legend_item(lv_color_hex(0x999999), "Set");
 
     // Navigation bar
     create_nav_bar(scr_graph, 1);
@@ -973,6 +988,26 @@ static void factory_reset_click(lv_event_t* e) {
     show_confirm("Factory Reset",
                  "Erase all settings and data?\nDevice will restart.",
                  []() { if (cb_factory_reset) cb_factory_reset(); });
+}
+
+static void wifi_action_click(lv_event_t* e) {
+    (void)e;
+    if (!lbl_wifi_action) return;
+    const char* text = lv_label_get_text(lbl_wifi_action);
+    if (strcmp(text, "Disconnect") == 0) {
+        show_confirm("Disconnect Wi-Fi",
+                     "Web clients will lose connection.\nDisconnect?",
+                     []() { if (cb_wifi_action) cb_wifi_action("disconnect"); });
+    } else {
+        if (cb_wifi_action) cb_wifi_action("reconnect");
+    }
+}
+
+static void wifi_setup_click(lv_event_t* e) {
+    (void)e;
+    show_confirm("Setup Mode",
+                 "Start Wi-Fi setup AP?\nCurrent connection will drop.",
+                 []() { if (cb_wifi_action) cb_wifi_action("setup_ap"); });
 }
 
 static void create_settings_screen() {
@@ -1073,7 +1108,7 @@ static void create_settings_screen() {
     lv_obj_set_style_radius(btn_damper_pri, 4, 0);
     lv_obj_add_event_cb(btn_damper_pri, damper_pri_click, LV_EVENT_CLICKED, nullptr);
     lbl = lv_label_create(btn_damper_pri);
-    lv_label_set_text(lbl, "Dmpr");
+    lv_label_set_text(lbl, "Damper");
     lv_obj_set_style_text_color(lbl, COLOR_TEXT, 0);
     lv_obj_center(lbl);
 
@@ -1088,19 +1123,78 @@ static void create_settings_screen() {
     lv_obj_set_style_text_color(lbl, COLOR_TEXT, 0);
     lv_obj_center(lbl);
 
-    // --- Device Info ---
+    // --- Wi-Fi Info Card ---
     row = lv_obj_create(content);
-    lv_obj_set_size(row, LV_PCT(100), 50);
+    lv_obj_set_size(row, LV_PCT(100), 80);
     lv_obj_set_style_bg_color(row, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_width(row, 0, 0);
     lv_obj_set_style_radius(row, 6, 0);
     lv_obj_set_style_pad_all(row, 6, 0);
 
-    lbl = lv_label_create(row);
-    lv_label_set_text_fmt(lbl, "Wi-Fi: http://bbq.local\nFirmware: v%s", FIRMWARE_VERSION);
+    // Wi-Fi icon + status label
+    lv_obj_t* wifi_hdr = lv_label_create(row);
+    lv_label_set_text(wifi_hdr, LV_SYMBOL_WIFI);
+    lv_obj_set_style_text_color(wifi_hdr, COLOR_TEXT_DIM, 0);
+    lv_obj_set_pos(wifi_hdr, 4, 2);
+
+    lbl_wifi_status = lv_label_create(row);
+    lv_label_set_text(lbl_wifi_status, "Disconnected");
+    lv_obj_set_style_text_color(lbl_wifi_status, COLOR_RED, 0);
+    lv_obj_set_style_text_font(lbl_wifi_status, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_wifi_status, 26, 2);
+
+    lbl_wifi_ssid = lv_label_create(row);
+    lv_label_set_text(lbl_wifi_ssid, "SSID: ---");
+    lv_obj_set_style_text_color(lbl_wifi_ssid, COLOR_TEXT_DIM, 0);
+    lv_obj_set_style_text_font(lbl_wifi_ssid, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_wifi_ssid, 4, 20);
+
+    lbl_wifi_ip = lv_label_create(row);
+    lv_label_set_text(lbl_wifi_ip, "IP: ---");
+    lv_obj_set_style_text_color(lbl_wifi_ip, COLOR_TEXT_DIM, 0);
+    lv_obj_set_style_text_font(lbl_wifi_ip, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_wifi_ip, 4, 38);
+
+    lbl_wifi_signal = lv_label_create(row);
+    lv_label_set_text(lbl_wifi_signal, "Signal: ---");
+    lv_obj_set_style_text_color(lbl_wifi_signal, COLOR_TEXT_DIM, 0);
+    lv_obj_set_style_text_font(lbl_wifi_signal, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_wifi_signal, 4, 56);
+
+    // --- Wi-Fi Actions Row ---
+    row = lv_obj_create(content);
+    lv_obj_set_size(row, LV_PCT(100), 44);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
+    lv_obj_set_style_pad_all(row, 0, 0);
+
+    btn_wifi_action = lv_btn_create(row);
+    lv_obj_set_size(btn_wifi_action, 160, 36);
+    lv_obj_align(btn_wifi_action, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_style_bg_color(btn_wifi_action, COLOR_CARD_BG, 0);
+    lv_obj_set_style_radius(btn_wifi_action, 6, 0);
+    lv_obj_add_event_cb(btn_wifi_action, wifi_action_click, LV_EVENT_CLICKED, nullptr);
+    lbl_wifi_action = lv_label_create(btn_wifi_action);
+    lv_label_set_text(lbl_wifi_action, "Disconnect");
+    lv_obj_set_style_text_color(lbl_wifi_action, COLOR_TEXT, 0);
+    lv_obj_center(lbl_wifi_action);
+
+    lv_obj_t* btn_setup = lv_btn_create(row);
+    lv_obj_set_size(btn_setup, 160, 36);
+    lv_obj_align(btn_setup, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_bg_color(btn_setup, COLOR_CARD_BG, 0);
+    lv_obj_set_style_radius(btn_setup, 6, 0);
+    lv_obj_add_event_cb(btn_setup, wifi_setup_click, LV_EVENT_CLICKED, nullptr);
+    lbl = lv_label_create(btn_setup);
+    lv_label_set_text(lbl, "Setup Mode");
+    lv_obj_set_style_text_color(lbl, COLOR_TEXT, 0);
+    lv_obj_center(lbl);
+
+    // --- Firmware Info ---
+    lbl = lv_label_create(content);
+    lv_label_set_text_fmt(lbl, "Firmware: v%s", FIRMWARE_VERSION);
     lv_obj_set_style_text_color(lbl, COLOR_TEXT_DIM, 0);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
-    lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 4, 0);
 
     // --- Factory Reset button ---
     lv_obj_t* btn_reset = lv_btn_create(content);
@@ -1151,6 +1245,9 @@ void ui_init() {
     create_meat_target_modal();
     create_confirm_modal();
 
+    // Bind external arrays to chart series for adaptive condensing
+    ui_graph_init();
+
     lv_screen_load(scr_dashboard);
     current_screen = Screen::DASHBOARD;
 
@@ -1194,4 +1291,5 @@ void ui_tick(uint32_t) {}
 void ui_handler() {}
 void ui_set_callbacks(UiSetpointCb, UiMeatTargetCb, UiAlarmAckCb) {}
 void ui_set_settings_callbacks(UiUnitsCb, UiFanModeCb, UiNewSessionCb, UiFactoryResetCb) {}
+void ui_set_wifi_callback(UiWifiActionCb) {}
 #endif

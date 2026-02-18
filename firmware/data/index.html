@@ -72,14 +72,33 @@
     </div>
   </header>
 
+  <!-- Update Banner -->
+  <div class="update-banner" id="updateBanner" style="display:none">
+    <span id="updateMessage">Update available</span>
+    <button class="btn btn-primary btn-sm" id="btnUpdate">Update Now</button>
+    <button class="icon-btn btn-dismiss" id="btnDismissUpdate" aria-label="Dismiss">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+      </svg>
+    </button>
+  </div>
+
   <main class="dashboard">
     <!-- Output Bars (Fan / Damper) -->
     <section class="output-bars">
-      <div class="output-bar-track">
-        <div class="output-bar fan-bar" id="fanBar" style="width: 0%"></div>
+      <div class="output-bar-row" id="fanBarRow">
+        <span class="output-bar-label fan-label">Fan</span>
+        <div class="output-bar-track">
+          <div class="output-bar fan-bar" id="fanBar" style="width: 0%"></div>
+        </div>
+        <span class="output-bar-value" id="fanBarValue">0%</span>
       </div>
-      <div class="output-bar-track">
-        <div class="output-bar damper-bar" id="damperBar" style="width: 0%"></div>
+      <div class="output-bar-row" id="damperBarRow">
+        <span class="output-bar-label damper-label">Damper</span>
+        <div class="output-bar-track">
+          <div class="output-bar damper-bar" id="damperBar" style="width: 0%"></div>
+        </div>
+        <span class="output-bar-value" id="damperBarValue">0%</span>
       </div>
     </section>
 
@@ -150,7 +169,7 @@
         <div class="chart-legend">
           <span class="legend-outputs">
             <span class="legend-item legend-c-fan" data-series="4"><span class="legend-swatch"></span>Fan <span id="legFan">--</span></span>
-            <span class="legend-item legend-c-damper" data-series="5"><span class="legend-swatch"></span>Dmpr <span id="legDamper">--</span></span>
+            <span class="legend-item legend-c-damper" data-series="5"><span class="legend-swatch"></span>Damper <span id="legDamper">--</span></span>
           </span>
           <span class="legend-item legend-c-pit" data-series="1"><span class="legend-swatch"></span>Pit <span id="legPit">--</span></span>
           <span class="legend-item legend-c-meat1" data-series="2"><span class="legend-swatch"></span>Meat 1 <span id="legMeat1">--</span></span>
@@ -163,6 +182,20 @@
       </div>
     </section>
   </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <span id="fwVersion">Pit Claw</span>
+  </footer>
+
+  <!-- Update Progress Overlay -->
+  <div class="update-overlay" id="updateOverlay" style="display:none">
+    <div class="update-progress">
+      <h3>Updating Firmware</h3>
+      <div class="progress-bar"><div class="progress-fill" id="updateProgress"></div></div>
+      <span id="updateStatus">Downloading...</span>
+    </div>
+  </div>
 
   <!-- Settings Panel -->
   <div class="settings-overlay" id="settingsOverlay"></div>
@@ -212,6 +245,15 @@
       </div>
       <div class="settings-divider"></div>
       <div class="settings-group">
+        <div class="settings-label">Fan Mode</div>
+        <div class="fan-mode-buttons">
+          <button class="btn btn-fan-mode" id="btnFanOnly" data-mode="fan_only">Fan Only</button>
+          <button class="btn btn-fan-mode active" id="btnFanAndDamper" data-mode="fan_and_damper">Fan + Damper</button>
+          <button class="btn btn-fan-mode" id="btnDamperPrimary" data-mode="damper_primary">Damper Primary</button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
         <div class="settings-label">Session</div>
         <div class="session-buttons">
           <button class="btn btn-secondary" id="btnDownloadCSV">Download CSV</button>
@@ -224,6 +266,14 @@
         <div class="prefs-row">
           <button class="btn btn-toggle" id="btnToggleUnits" title="Toggle &deg;F / &deg;C">&deg;F</button>
           <button class="btn btn-toggle" id="btnToggleTime" title="Toggle 12h / 24h">12h</button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <div class="settings-label">Firmware</div>
+        <div class="firmware-info">
+          <span id="settingsVersion">v---</span>
+          <button class="btn btn-secondary" id="btnCheckUpdate">Check for Update</button>
         </div>
       </div>
     </div>

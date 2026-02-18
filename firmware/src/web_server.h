@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "web_protocol.h"
 #include <stdint.h>
 
 #ifndef NATIVE_BUILD
@@ -24,6 +25,7 @@ class ErrorManager;
 typedef void (*SetpointCallback)(float setpoint);
 typedef void (*AlarmCallback)(const char* probe, float target);
 typedef void (*SessionCallback)(const char* action, const char* format);
+typedef void (*FanModeCallback)(const char* mode);
 
 class BBQWebServer {
 public:
@@ -50,6 +52,10 @@ public:
     void onSetpoint(SetpointCallback cb)  { _onSetpoint = cb; }
     void onAlarm(AlarmCallback cb)        { _onAlarm = cb; }
     void onSession(SessionCallback cb)    { _onSession = cb; }
+    void onFanMode(FanModeCallback cb)    { _onFanMode = cb; }
+
+    // Send history replay to a specific client on connect
+    void sendHistory(uint8_t clientId);
 
     // Force-send data to all clients immediately (bypasses interval)
     void broadcastNow();
@@ -64,8 +70,8 @@ public:
     void setEstimatedTime(uint32_t est) { _estimatedTime = est; }
 
 private:
-    // Build the JSON data message from current sensor/PID state
-    String buildDataMessage();
+    // Build the data payload from current sensor/PID state
+    bbq_protocol::DataPayload buildDataPayload();
 
     // Handle incoming WebSocket messages
     void handleWebSocketMessage(uint8_t clientId, const char* data, size_t len);
@@ -100,4 +106,5 @@ private:
     SetpointCallback _onSetpoint;
     AlarmCallback    _onAlarm;
     SessionCallback  _onSession;
+    FanModeCallback  _onFanMode;
 };

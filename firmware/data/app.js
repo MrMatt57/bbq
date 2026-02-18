@@ -12,6 +12,8 @@
   var CHART_WINDOW_SEC = 2 * 60 * 60; // 2 hours visible window
   var PREDICTION_WINDOW_SEC = 30 * 60; // 30 min of history for regression
   var MIN_PREDICTION_POINTS = 10; // ~5 min at 30s interval
+  var GITHUB_REPO = 'MrMatt57/pitclaw';
+  var OTA_CHUNK_SIZE = 4096;
 
   // ---------------------------------------------------------------------------
   // State
@@ -31,6 +33,7 @@
 
   var currentUnits = 'F';        // 'F' or 'C' — display only
   var currentTimeFormat = '12h'; // '12h' or '24h'
+  var currentFanMode = 'fan_and_damper'; // 'fan_only', 'fan_and_damper', 'damper_primary'
 
   var cookTimerStart = null;  // server timestamp (seconds) when cook started
   var cookTimerInterval = null;
@@ -43,6 +46,9 @@
   var notifyMeat1Fired = false;  // true once meat1 target notification sent
   var notifyMeat2Fired = false;  // true once meat2 target notification sent
   var audioCtx = null;           // Web Audio API context (created on user gesture)
+
+  var firmwareVersion = null;    // current firmware version string
+  var latestRelease = null;      // cached GitHub release JSON
 
   // ---------------------------------------------------------------------------
   // DOM References
@@ -67,6 +73,13 @@
     dom.meat2Prediction = document.getElementById('meat2Prediction');
     dom.fanBar = document.getElementById('fanBar');
     dom.damperBar = document.getElementById('damperBar');
+    dom.fanBarRow = document.getElementById('fanBarRow');
+    dom.damperBarRow = document.getElementById('damperBarRow');
+    dom.fanBarValue = document.getElementById('fanBarValue');
+    dom.damperBarValue = document.getElementById('damperBarValue');
+    dom.btnFanOnly = document.getElementById('btnFanOnly');
+    dom.btnFanAndDamper = document.getElementById('btnFanAndDamper');
+    dom.btnDamperPrimary = document.getElementById('btnDamperPrimary');
     dom.cookStart = document.getElementById('cookStart');
     dom.cookTimer = document.getElementById('cookTimer');
     dom.cookDone = document.getElementById('cookDone');
@@ -93,6 +106,18 @@
     dom.legM2Tgt = document.getElementById('legM2Tgt');
     dom.legFan = document.getElementById('legFan');
     dom.legDamper = document.getElementById('legDamper');
+    dom.meat1Card = document.querySelector('.meat1-card');
+    dom.meat2Card = document.querySelector('.meat2-card');
+    dom.fwVersion = document.getElementById('fwVersion');
+    dom.settingsVersion = document.getElementById('settingsVersion');
+    dom.updateBanner = document.getElementById('updateBanner');
+    dom.updateMessage = document.getElementById('updateMessage');
+    dom.btnUpdate = document.getElementById('btnUpdate');
+    dom.btnDismissUpdate = document.getElementById('btnDismissUpdate');
+    dom.updateOverlay = document.getElementById('updateOverlay');
+    dom.updateProgress = document.getElementById('updateProgress');
+    dom.updateStatus = document.getElementById('updateStatus');
+    dom.btnCheckUpdate = document.getElementById('btnCheckUpdate');
   }
 
   // ---------------------------------------------------------------------------
@@ -286,10 +311,35 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Fan Mode
+  // ---------------------------------------------------------------------------
+  function applyFanMode(mode) {
+    currentFanMode = mode;
+
+    // Toggle active class on mode buttons
+    dom.btnFanOnly.classList.toggle('active', mode === 'fan_only');
+    dom.btnFanAndDamper.classList.toggle('active', mode === 'fan_and_damper');
+    dom.btnDamperPrimary.classList.toggle('active', mode === 'damper_primary');
+
+    // Show/hide bar rows
+    dom.fanBarRow.classList.toggle('hidden', mode === 'damper_primary');
+    dom.damperBarRow.classList.toggle('hidden', mode === 'fan_only');
+
+    // Show/hide chart legend items for fan/damper
+    var legFanItem = dom.legFan.closest('.legend-item');
+    var legDamperItem = dom.legDamper.closest('.legend-item');
+    if (legFanItem) legFanItem.style.display = mode === 'damper_primary' ? 'none' : '';
+    if (legDamperItem) legDamperItem.style.display = mode === 'fan_only' ? 'none' : '';
+  }
+
+  // ---------------------------------------------------------------------------
   // Message Handling
   // ---------------------------------------------------------------------------
   function handleMessage(msg) {
     if (msg.type === 'data') {
+      if (msg.fanMode && msg.fanMode !== currentFanMode) {
+        applyFanMode(msg.fanMode);
+      }
       updateTemperatures(msg);
       updateOutputs(msg);
       appendChartData(msg);
@@ -300,6 +350,8 @@
       loadHistory(msg);
     } else if (msg.type === 'session' && msg.action === 'reset') {
       handleSessionReset(msg);
+    } else if (msg.type === 'session' && msg.action === 'download') {
+      handleSessionDownload(msg);
     }
   }
 
@@ -321,12 +373,29 @@
     }
     updateLegendValues(null);
 
+    // Clear stale targets
+    hideMeatTarget(1);
+    hideMeatTarget(2);
+
     // Restore setpoint from the server's reset defaults
     if (msg.sp !== undefined) {
       pitSetpoint = msg.sp;
       dom.pitSetpoint.textContent = displayTemp(msg.sp);
       dom.pitSpInput.value = displayTemp(msg.sp);
     }
+  }
+
+  function handleSessionDownload(msg) {
+    if (!msg.data) return;
+    var blob = new Blob([msg.data], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'cook-session.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   function loadHistory(msg) {
@@ -336,15 +405,19 @@
       dom.pitSetpoint.textContent = displayTemp(msg.sp);
       dom.pitSpInput.value = displayTemp(msg.sp);
     }
-    if (msg.meat1Target !== undefined && msg.meat1Target !== null) {
-      meat1Target = msg.meat1Target;
-      dom.meat1Target.textContent = displayTemp(msg.meat1Target);
-      dom.meat1TargetInput.value = displayTemp(msg.meat1Target);
+    if (msg.meat1Target !== undefined) {
+      if (msg.meat1Target !== null && msg.meat1Target > 0) {
+        showMeatTarget(1, msg.meat1Target);
+      } else {
+        hideMeatTarget(1);
+      }
     }
-    if (msg.meat2Target !== undefined && msg.meat2Target !== null) {
-      meat2Target = msg.meat2Target;
-      dom.meat2Target.textContent = displayTemp(msg.meat2Target);
-      dom.meat2TargetInput.value = displayTemp(msg.meat2Target);
+    if (msg.meat2Target !== undefined) {
+      if (msg.meat2Target !== null && msg.meat2Target > 0) {
+        showMeatTarget(2, msg.meat2Target);
+      } else {
+        hideMeatTarget(2);
+      }
     }
 
     // Populate chart data from history (stored as °F)
@@ -374,7 +447,8 @@
     updateTemperatures(last);
     updateOutputs(last);
 
-    // Trigger cook timer from history (first valid meat reading)
+    // Reset cook timer and re-derive from history (server is source of truth)
+    resetCookTimer();
     for (var k = 0; k < msg.data.length; k++) {
       updateCookTimer(msg.data[k]);
       if (cookTimerStart) break;
@@ -399,16 +473,20 @@
       dom.pitSpInput.value = displayTemp(msg.sp);
     }
 
-    if (msg.meat1Target !== undefined && msg.meat1Target !== null) {
-      meat1Target = msg.meat1Target;
-      dom.meat1Target.textContent = displayTemp(msg.meat1Target);
-      dom.meat1TargetInput.value = displayTemp(msg.meat1Target);
+    if (msg.meat1Target !== undefined) {
+      if (msg.meat1Target !== null && msg.meat1Target > 0) {
+        showMeatTarget(1, msg.meat1Target);
+      } else {
+        hideMeatTarget(1);
+      }
     }
 
-    if (msg.meat2Target !== undefined && msg.meat2Target !== null) {
-      meat2Target = msg.meat2Target;
-      dom.meat2Target.textContent = displayTemp(msg.meat2Target);
-      dom.meat2TargetInput.value = displayTemp(msg.meat2Target);
+    if (msg.meat2Target !== undefined) {
+      if (msg.meat2Target !== null && msg.meat2Target > 0) {
+        showMeatTarget(2, msg.meat2Target);
+      } else {
+        hideMeatTarget(2);
+      }
     }
   }
 
@@ -418,6 +496,8 @@
 
     dom.fanBar.style.width = fan + '%';
     dom.damperBar.style.width = damper + '%';
+    dom.fanBarValue.textContent = Math.round(fan) + '%';
+    dom.damperBarValue.textContent = Math.round(damper) + '%';
   }
 
   // ---------------------------------------------------------------------------
@@ -444,8 +524,9 @@
     // Start time (clock)
     dom.cookStart.textContent = formatClockTime(new Date(cookTimerStart * 1000));
 
-    // Elapsed
+    // Elapsed (guard against stale/mismatched timestamps)
     var elapsed = latestServerTs - cookTimerStart;
+    if (elapsed < 0) elapsed = 0;
     dom.cookTimer.textContent = formatTime(elapsed);
 
     // Done time — average of predictions, or single if only one is set
@@ -697,6 +778,40 @@
     }
     if (chart) {
       chart.setData(buildChartDataWithPrediction());
+    }
+  }
+
+  function showMeatTarget(probe, fVal) {
+    if (probe === 1) {
+      meat1Target = fVal;
+      dom.meat1Target.textContent = displayTemp(fVal);
+      dom.meat1TargetInput.value = displayTemp(fVal);
+      dom.meat1Card.classList.remove('no-target');
+      restoreTargetInChart(7, fVal);
+    } else {
+      meat2Target = fVal;
+      dom.meat2Target.textContent = displayTemp(fVal);
+      dom.meat2TargetInput.value = displayTemp(fVal);
+      dom.meat2Card.classList.remove('no-target');
+      restoreTargetInChart(8, fVal);
+    }
+  }
+
+  function hideMeatTarget(probe) {
+    if (probe === 1) {
+      meat1Target = null;
+      dom.meat1Target.textContent = '---';
+      dom.meat1TargetInput.value = '';
+      dom.meat1Prediction.textContent = '';
+      dom.meat1Card.classList.add('no-target');
+      clearTargetFromChart(7);
+    } else {
+      meat2Target = null;
+      dom.meat2Target.textContent = '---';
+      dom.meat2TargetInput.value = '';
+      dom.meat2Prediction.textContent = '';
+      dom.meat2Card.classList.add('no-target');
+      clearTargetFromChart(8);
     }
   }
 
@@ -986,16 +1101,20 @@
     if (meat1Target !== null) {
       dom.meat1Target.textContent = displayTemp(meat1Target);
       dom.meat1TargetInput.value = displayTemp(meat1Target);
+      dom.meat1Card.classList.remove('no-target');
     } else {
       dom.meat1Target.textContent = '---';
       dom.meat1TargetInput.value = '';
+      dom.meat1Card.classList.add('no-target');
     }
     if (meat2Target !== null) {
       dom.meat2Target.textContent = displayTemp(meat2Target);
       dom.meat2TargetInput.value = displayTemp(meat2Target);
+      dom.meat2Card.classList.remove('no-target');
     } else {
       dom.meat2Target.textContent = '---';
       dom.meat2TargetInput.value = '';
+      dom.meat2Card.classList.add('no-target');
     }
 
     updatePredictions();
@@ -1057,6 +1176,7 @@
         meat1Target = null;
         dom.meat1Target.textContent = '---';
         dom.meat1Prediction.textContent = '';
+        dom.meat1Card.classList.add('no-target');
         clearTargetFromChart(7);
         debounce('meat1Target', function () {
           wsSend({ type: 'alarm', meat1Target: null });
@@ -1070,6 +1190,7 @@
         var fVal = displayTempFromInput(displayVal);
         meat1Target = fVal;
         dom.meat1Target.textContent = displayVal;
+        dom.meat1Card.classList.remove('no-target');
         restoreTargetInChart(7, fVal);
         debounce('meat1Target', function () {
           wsSend({ type: 'alarm', meat1Target: fVal });
@@ -1084,6 +1205,7 @@
         meat2Target = null;
         dom.meat2Target.textContent = '---';
         dom.meat2Prediction.textContent = '';
+        dom.meat2Card.classList.add('no-target');
         clearTargetFromChart(8);
         debounce('meat2Target', function () {
           wsSend({ type: 'alarm', meat2Target: null });
@@ -1097,6 +1219,7 @@
         var fVal = displayTempFromInput(displayVal);
         meat2Target = fVal;
         dom.meat2Target.textContent = displayVal;
+        dom.meat2Card.classList.remove('no-target');
         restoreTargetInChart(8, fVal);
         debounce('meat2Target', function () {
           wsSend({ type: 'alarm', meat2Target: fVal });
@@ -1166,6 +1289,16 @@
 
     dom.btnDownloadCSV.addEventListener('click', function () {
       wsSend({ type: 'session', action: 'download', format: 'csv' });
+    });
+
+    // Fan mode buttons
+    var fanModeButtons = [dom.btnFanOnly, dom.btnFanAndDamper, dom.btnDamperPrimary];
+    fanModeButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var mode = this.getAttribute('data-mode');
+        applyFanMode(mode);
+        wsSend({ type: 'config', fanMode: mode });
+      });
     });
   }
 
@@ -1308,6 +1441,163 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Firmware Version & OTA Update
+  // ---------------------------------------------------------------------------
+  function fetchVersion() {
+    fetch('/api/version')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        firmwareVersion = data.version;
+        dom.fwVersion.textContent = 'Pit Claw v' + firmwareVersion;
+        dom.settingsVersion.textContent = 'v' + firmwareVersion;
+        checkForUpdate();
+      })
+      .catch(function (err) {
+        console.warn('Failed to fetch version:', err);
+      });
+  }
+
+  function compareVersions(a, b) {
+    var pa = a.split('.').map(Number);
+    var pb = b.split('.').map(Number);
+    for (var i = 0; i < 3; i++) {
+      var va = pa[i] || 0;
+      var vb = pb[i] || 0;
+      if (va < vb) return -1;
+      if (va > vb) return 1;
+    }
+    return 0;
+  }
+
+  function checkForUpdate() {
+    if (!firmwareVersion || firmwareVersion === 'dev') return;
+
+    fetch('https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest')
+      .then(function (r) {
+        if (!r.ok) throw new Error('GitHub API ' + r.status);
+        return r.json();
+      })
+      .then(function (release) {
+        latestRelease = release;
+        var remoteVersion = release.tag_name.replace(/^v/, '');
+        if (compareVersions(firmwareVersion, remoteVersion) < 0) {
+          dom.updateMessage.textContent = 'Update available: v' + remoteVersion;
+          dom.updateBanner.style.display = '';
+        }
+      })
+      .catch(function (err) {
+        console.warn('Update check failed:', err);
+      });
+  }
+
+  function performUpdate() {
+    if (!latestRelease) return;
+
+    // Find firmware .bin asset
+    var asset = null;
+    for (var i = 0; i < latestRelease.assets.length; i++) {
+      if (/pitclaw-firmware-.*\.bin$/.test(latestRelease.assets[i].name)) {
+        asset = latestRelease.assets[i];
+        break;
+      }
+    }
+    if (!asset) {
+      alert('No firmware binary found in release assets.');
+      return;
+    }
+
+    dom.updateBanner.style.display = 'none';
+    dom.updateOverlay.style.display = '';
+    dom.updateStatus.textContent = 'Downloading firmware...';
+    dom.updateProgress.style.width = '0%';
+
+    // Download .bin from GitHub
+    fetch(asset.browser_download_url)
+      .then(function (r) {
+        if (!r.ok) throw new Error('Download failed: ' + r.status);
+        var contentLength = +r.headers.get('Content-Length') || 0;
+        if (!r.body || !contentLength) return r.arrayBuffer();
+
+        // Stream download with progress
+        var reader = r.body.getReader();
+        var received = 0;
+        var chunks = [];
+        function pump() {
+          return reader.read().then(function (result) {
+            if (result.done) {
+              var blob = new Uint8Array(received);
+              var pos = 0;
+              for (var j = 0; j < chunks.length; j++) {
+                blob.set(chunks[j], pos);
+                pos += chunks[j].length;
+              }
+              return blob.buffer;
+            }
+            chunks.push(result.value);
+            received += result.value.length;
+            var pct = Math.round((received / contentLength) * 40);
+            dom.updateProgress.style.width = pct + '%';
+            dom.updateStatus.textContent = 'Downloading... ' + Math.round((received / contentLength) * 100) + '%';
+            return pump();
+          });
+        }
+        return pump();
+      })
+      .then(function (buffer) {
+        dom.updateProgress.style.width = '40%';
+        dom.updateStatus.textContent = 'Starting upload to device...';
+        return uploadFirmwareOTA(buffer);
+      })
+      .then(function () {
+        dom.updateProgress.style.width = '100%';
+        dom.updateStatus.textContent = 'Update complete! Rebooting...';
+        setTimeout(function () { window.location.reload(); }, 15000);
+      })
+      .catch(function (err) {
+        console.error('Update failed:', err);
+        dom.updateOverlay.style.display = 'none';
+        alert('Update failed: ' + err.message);
+      });
+  }
+
+  function uploadFirmwareOTA(buffer) {
+    var size = buffer.byteLength;
+
+    // ElegantOTA v3 protocol: start session, then upload chunks
+    return fetch('/ota/start?mode=fr&hash=0&size=' + size)
+      .then(function (r) {
+        if (!r.ok) throw new Error('OTA start failed: ' + r.status);
+        // Upload in chunks
+        var offset = 0;
+        function sendChunk() {
+          if (offset >= size) return Promise.resolve();
+          var end = Math.min(offset + OTA_CHUNK_SIZE, size);
+          var chunk = buffer.slice(offset, end);
+          return fetch('/ota/upload', {
+            method: 'POST',
+            body: chunk,
+            headers: { 'Content-Type': 'application/octet-stream' }
+          }).then(function (r) {
+            if (!r.ok) throw new Error('Chunk upload failed at ' + offset);
+            offset = end;
+            var pct = 40 + Math.round((offset / size) * 55);
+            dom.updateProgress.style.width = pct + '%';
+            dom.updateStatus.textContent = 'Uploading... ' + Math.round((offset / size) * 100) + '%';
+            return sendChunk();
+          });
+        }
+        return sendChunk();
+      })
+      .catch(function (err) {
+        // On reboot during final chunk, the connection drops — that's expected
+        if (err.name === 'TypeError' && err.message.indexOf('Failed to fetch') !== -1) {
+          return; // device is rebooting
+        }
+        throw err;
+      });
+  }
+
+  // ---------------------------------------------------------------------------
   // Init
   // ---------------------------------------------------------------------------
   function init() {
@@ -1320,6 +1610,11 @@
     initChart();
     initLegendToggles();
     syncLegendClasses();
+
+    // Hide target rows until server provides state
+    dom.meat1Card.classList.add('no-target');
+    dom.meat2Card.classList.add('no-target');
+
     wsConnect();
 
     // Notification bell
@@ -1353,6 +1648,39 @@
 
     // Window resize
     window.addEventListener('resize', onResize);
+
+    // Firmware version and OTA update
+    fetchVersion();
+    dom.btnUpdate.addEventListener('click', performUpdate);
+    dom.btnDismissUpdate.addEventListener('click', function () {
+      dom.updateBanner.style.display = 'none';
+    });
+    dom.btnCheckUpdate.addEventListener('click', function () {
+      dom.btnCheckUpdate.textContent = 'Checking...';
+      latestRelease = null;
+      fetch('https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest')
+        .then(function (r) {
+          if (!r.ok) throw new Error('GitHub API ' + r.status);
+          return r.json();
+        })
+        .then(function (release) {
+          latestRelease = release;
+          var remoteVersion = release.tag_name.replace(/^v/, '');
+          if (!firmwareVersion || firmwareVersion === 'dev') {
+            dom.btnCheckUpdate.textContent = 'Dev build';
+          } else if (compareVersions(firmwareVersion, remoteVersion) < 0) {
+            dom.updateMessage.textContent = 'Update available: v' + remoteVersion;
+            dom.updateBanner.style.display = '';
+            dom.btnCheckUpdate.textContent = 'v' + remoteVersion + ' available';
+          } else {
+            dom.btnCheckUpdate.textContent = 'Up to date';
+          }
+        })
+        .catch(function (err) {
+          console.warn('Update check failed:', err);
+          dom.btnCheckUpdate.textContent = 'Check failed';
+        });
+    });
   }
 
   // Wait for DOM

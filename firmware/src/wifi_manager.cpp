@@ -172,6 +172,18 @@ String WifiManager::getIPAddress() const {
     return String("0.0.0.0");
 }
 
+String WifiManager::getSSID() const {
+#ifndef NATIVE_BUILD
+    if (_apMode) {
+        return String(AP_SSID);
+    }
+    if (_connected) {
+        return WiFi.SSID();
+    }
+#endif
+    return String("");
+}
+
 int WifiManager::getRSSI() const {
 #ifndef NATIVE_BUILD
     if (_connected && !_apMode) {
@@ -184,6 +196,16 @@ int WifiManager::getRSSI() const {
 String WifiManager::getAPQRCodeData() const {
     // Standard WiFi QR code format
     return String("WIFI:T:WPA;S:" AP_SSID ";P:" AP_PASSWORD ";;");
+}
+
+void WifiManager::disconnect() {
+#ifndef NATIVE_BUILD
+    Serial.println("[WIFI] Manual disconnect requested.");
+    _connected = false;
+    _apMode = false;
+    _reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // Prevent auto-reconnect
+    WiFi.disconnect(true);
+#endif
 }
 
 void WifiManager::reconnect() {

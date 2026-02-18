@@ -33,11 +33,28 @@ void ui_update_output_bars(float fanPct, float damperPct);
 // Update WiFi connection status icon.
 void ui_update_wifi(bool connected);
 
-// Add a data point to the graph screen chart.
-void ui_update_graph(float pit, float meat1, float meat2);
+// Wi-Fi info for settings screen display
+struct WifiInfo {
+    bool connected;
+    bool apMode;
+    const char* ssid;   // "MyNetwork", "BBQ-Setup", or "Simulator"
+    const char* ip;     // "192.168.1.42", "192.168.4.1", or "localhost"
+    int rssi;           // dBm, 0 if unknown
+};
 
-// Update setpoint reference line on graph.
-void ui_update_graph_setpoint(float sp);
+// Update settings screen Wi-Fi info card with current connection details.
+void ui_update_wifi_info(const WifiInfo& info);
+
+// Initialize graph external arrays. Call once after chart/series creation.
+void ui_graph_init();
+
+// Add a data point to the graph with adaptive condensing.
+// Disconnected probes are marked invalid (pass true for disconnected).
+void ui_graph_add_point(float pit, float meat1, float meat2, float setpoint,
+                        bool pitDisc, bool meat1Disc, bool meat2Disc);
+
+// Clear graph history (e.g., on new session).
+void ui_graph_clear();
 
 // Update settings screen state to reflect current values.
 void ui_update_settings_state(bool isFahrenheit, const char* fanMode);

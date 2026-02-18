@@ -28,7 +28,7 @@ def configure_sdl2_msys2(env):
         if os.path.isdir(include_dir) and os.path.isdir(lib_dir):
             env.Append(CPPPATH=[include_dir, include_parent])
             env.Append(LIBPATH=[lib_dir])
-            env.Append(LIBS=["mingw32", "SDL2main", "SDL2"])
+            env.Append(LIBS=["mingw32", "SDL2main", "SDL2", "ws2_32"])
             env.Append(LINKFLAGS=["-mconsole"])
             return True
     return False

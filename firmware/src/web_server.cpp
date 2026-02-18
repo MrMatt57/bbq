@@ -3,6 +3,7 @@
 #ifndef NATIVE_BUILD
 #include <Arduino.h>
 #include <time.h>
+#include <cmath>
 
 #include "temp_manager.h"
 #include "pid_controller.h"
@@ -35,6 +36,7 @@ BBQWebServer::BBQWebServer()
     , _onSetpoint(nullptr)
     , _onAlarm(nullptr)
     , _onSession(nullptr)
+    , _onFanMode(nullptr)
 {
 }
 
@@ -50,6 +52,14 @@ void BBQWebServer::begin() {
     });
 
     _server->addHandler(_ws);
+
+    // Version API endpoint
+    _server->on("/api/version", HTTP_GET, [](AsyncWebServerRequest* request) {
+        char json[128];
+        snprintf(json, sizeof(json),
+                 "{\"version\":\"%s\",\"board\":\"wt32_sc01_plus\"}", FIRMWARE_VERSION);
+        request->send(200, "application/json", json);
+    });
 
     // Serve static files from LittleFS (web UI)
     _server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
@@ -75,8 +85,10 @@ void BBQWebServer::update() {
         _lastBroadcastMs = now;
 
         if (_ws && _ws->count() > 0) {
-            String msg = buildDataMessage();
-            _ws->textAll(msg);
+            bbq_protocol::DataPayload payload = buildDataPayload();
+            char buf[512];
+            size_t len = bbq_protocol::buildDataMessage(buf, sizeof(buf), payload);
+            _ws->textAll(buf, len);
         }
     }
 
@@ -103,8 +115,10 @@ void BBQWebServer::setModules(TempManager* temp, PidController* pid, FanControll
 void BBQWebServer::broadcastNow() {
 #ifndef NATIVE_BUILD
     if (_ws && _ws->count() > 0) {
-        String msg = buildDataMessage();
-        _ws->textAll(msg);
+        bbq_protocol::DataPayload payload = buildDataPayload();
+        char buf[512];
+        size_t len = bbq_protocol::buildDataMessage(buf, sizeof(buf), payload);
+        _ws->textAll(buf, len);
     }
 #endif
 }
@@ -116,132 +130,155 @@ uint8_t BBQWebServer::getClientCount() const {
     return 0;
 }
 
-String BBQWebServer::buildDataMessage() {
-    String json;
-    json.reserve(256);
+bbq_protocol::DataPayload BBQWebServer::buildDataPayload() {
+    bbq_protocol::DataPayload payload;
+    memset(&payload, 0, sizeof(payload));
 
 #ifndef NATIVE_BUILD
-    JsonDocument doc;
-    doc["type"] = "data";
-
     // Timestamp
     time_t now;
     time(&now);
-    doc["ts"] = (uint32_t)now;
+    payload.ts = (uint32_t)now;
 
     // Temperatures
     if (_temp) {
-        if (_temp->isConnected(PROBE_PIT)) {
-            doc["pit"] = serialized(String(_temp->getPitTemp(), 1));
-        } else {
-            doc["pit"] = (const char*)nullptr;  // JSON null
-        }
-        if (_temp->isConnected(PROBE_MEAT1)) {
-            doc["meat1"] = serialized(String(_temp->getMeat1Temp(), 1));
-        } else {
-            doc["meat1"] = (const char*)nullptr;
-        }
-        if (_temp->isConnected(PROBE_MEAT2)) {
-            doc["meat2"] = serialized(String(_temp->getMeat2Temp(), 1));
-        } else {
-            doc["meat2"] = (const char*)nullptr;
-        }
+        payload.pit   = _temp->isConnected(PROBE_PIT)   ? _temp->getPitTemp()   : NAN;
+        payload.meat1 = _temp->isConnected(PROBE_MEAT1)  ? _temp->getMeat1Temp() : NAN;
+        payload.meat2 = _temp->isConnected(PROBE_MEAT2)  ? _temp->getMeat2Temp() : NAN;
+    } else {
+        payload.pit = payload.meat1 = payload.meat2 = NAN;
     }
 
     // Fan and damper
-    if (_fan) {
-        doc["fan"] = (int)_fan->getCurrentSpeedPct();
-    }
-    if (_servo) {
-        doc["damper"] = (int)_servo->getCurrentPositionPct();
-    }
+    payload.fan    = _fan    ? (uint8_t)_fan->getCurrentSpeedPct()        : 0;
+    payload.damper = _servo  ? (uint8_t)_servo->getCurrentPositionPct()   : 0;
 
     // Setpoint
-    doc["sp"] = (int)_setpoint;
+    payload.sp = _setpoint;
 
     // Lid-open
-    if (_pid) {
-        doc["lid"] = _pid->isLidOpen();
-    } else {
-        doc["lid"] = false;
-    }
+    payload.lid = _pid ? _pid->isLidOpen() : false;
+
+    // Meat targets from alarm manager
+    payload.meat1Target = _alarm ? _alarm->getMeat1Target() : 0;
+    payload.meat2Target = _alarm ? _alarm->getMeat2Target() : 0;
+
+    // Fan mode
+    payload.fanMode = _config ? _config->getFanMode() : "fan_and_damper";
 
     // Estimated done time
-    if (_estimatedTime > 0) {
-        doc["est"] = _estimatedTime;
-    } else {
-        doc["est"] = (const char*)nullptr;
-    }
+    payload.est = _estimatedTime;
 
     // Errors
-    JsonArray errors = doc["errors"].to<JsonArray>();
+    payload.errorCount = 0;
     if (_error) {
         auto activeErrors = _error->getErrors();
-        for (size_t i = 0; i < activeErrors.size(); i++) {
-            errors.add(activeErrors[i].message);
+        for (size_t i = 0; i < activeErrors.size() && payload.errorCount < 8; i++) {
+            payload.errors[payload.errorCount++] = activeErrors[i].message;
         }
     }
-
-    serializeJson(doc, json);
 #endif
 
-    return json;
+    return payload;
+}
+
+void BBQWebServer::sendHistory(uint8_t clientId) {
+#ifndef NATIVE_BUILD
+    if (!_session || !_ws) return;
+
+    uint32_t count = _session->getPointCount();
+    if (count == 0) return;
+
+    // Build array of HistoryPoints from session data
+    bbq_protocol::HistoryPoint* points =
+        (bbq_protocol::HistoryPoint*)malloc(count * sizeof(bbq_protocol::HistoryPoint));
+    if (!points) return;
+
+    for (uint32_t i = 0; i < count; i++) {
+        const DataPoint* dp = _session->getPoint(i);
+        if (!dp) continue;
+
+        points[i].ts = dp->timestamp;
+
+        // Convert int16 temps (x10) back to float, check disconnect flags
+        if (dp->flags & DP_FLAG_PIT_DISC)   points[i].pit = NAN;
+        else                                 points[i].pit = dp->pitTemp / 10.0f;
+
+        if (dp->flags & DP_FLAG_MEAT1_DISC) points[i].meat1 = NAN;
+        else                                 points[i].meat1 = dp->meat1Temp / 10.0f;
+
+        if (dp->flags & DP_FLAG_MEAT2_DISC) points[i].meat2 = NAN;
+        else                                 points[i].meat2 = dp->meat2Temp / 10.0f;
+
+        points[i].fan    = dp->fanPct;
+        points[i].damper = dp->damperPct;
+        points[i].sp     = _setpoint; // current setpoint (per-point sp not stored)
+        points[i].lid    = (dp->flags & DP_FLAG_LID_OPEN) != 0;
+    }
+
+    float m1t = _alarm ? _alarm->getMeat1Target() : 0;
+    float m2t = _alarm ? _alarm->getMeat2Target() : 0;
+
+    size_t msgLen = 0;
+    char* msg = bbq_protocol::buildHistoryMessage(points, count, _setpoint, m1t, m2t, &msgLen);
+    free(points);
+
+    if (msg) {
+        _ws->text(clientId, msg, msgLen);
+        free(msg);
+    }
+#endif
 }
 
 void BBQWebServer::handleWebSocketMessage(uint8_t clientId, const char* data, size_t len) {
 #ifndef NATIVE_BUILD
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, data, len);
-    if (err) {
-        Serial.printf("[WS] JSON parse error from client %u: %s\n", clientId, err.c_str());
-        return;
-    }
+    bbq_protocol::ParsedCommand cmd = bbq_protocol::parseCommand(data, len);
 
-    const char* type = doc["type"] | "";
+    switch (cmd.type) {
+        case bbq_protocol::CmdType::SET_SP:
+            _setpoint = cmd.setpoint;
+            if (_onSetpoint) _onSetpoint(cmd.setpoint);
+            Serial.printf("[WS] Client %u set setpoint to %.0f\n", clientId, cmd.setpoint);
+            break;
 
-    if (strcmp(type, "set") == 0) {
-        // Setpoint change: {"type":"set","sp":250}
-        if (doc["sp"].is<float>()) {
-            float sp = doc["sp"].as<float>();
-            _setpoint = sp;
-            if (_onSetpoint) _onSetpoint(sp);
-            Serial.printf("[WS] Client %u set setpoint to %.0f\n", clientId, sp);
-        }
-    }
-    else if (strcmp(type, "alarm") == 0) {
-        // Alarm target: {"type":"alarm","meat1Target":203}
-        if (doc["meat1Target"].is<float>()) {
-            if (_onAlarm) _onAlarm("meat1", doc["meat1Target"].as<float>());
-        }
-        if (doc["meat2Target"].is<float>()) {
-            if (_onAlarm) _onAlarm("meat2", doc["meat2Target"].as<float>());
-        }
-        if (doc["pitBand"].is<float>()) {
-            if (_onAlarm) _onAlarm("pitBand", doc["pitBand"].as<float>());
-        }
-    }
-    else if (strcmp(type, "session") == 0) {
-        // Session control: {"type":"session","action":"new"} or
-        //                  {"type":"session","action":"download","format":"csv"}
-        const char* action = doc["action"] | "";
-        const char* format = doc["format"] | "csv";
+        case bbq_protocol::CmdType::ALARM:
+            if (cmd.hasMeat1Target && _onAlarm) _onAlarm("meat1", cmd.meat1Target);
+            if (cmd.hasMeat2Target && _onAlarm) _onAlarm("meat2", cmd.meat2Target);
+            if (cmd.hasPitBand && _onAlarm)     _onAlarm("pitBand", cmd.pitBand);
+            break;
 
-        if (_onSession) _onSession(action, format);
-
-        // Handle download request directly
-        if (strcmp(action, "download") == 0 && _session) {
-            String sessionData;
-            if (strcmp(format, "json") == 0) {
-                sessionData = _session->toJSON();
-            } else {
-                sessionData = _session->toCSV();
+        case bbq_protocol::CmdType::SESSION_NEW:
+            if (_onSession) _onSession("new", "");
+            // Broadcast session reset to all clients
+            {
+                char buf[128];
+                size_t n = bbq_protocol::buildSessionReset(buf, sizeof(buf), _setpoint);
+                _ws->textAll(buf, n);
             }
-            // Send session data to the requesting client
-            _ws->text(clientId, sessionData);
-        }
-    }
-    else {
-        Serial.printf("[WS] Unknown message type from client %u: %s\n", clientId, type);
+            break;
+
+        case bbq_protocol::CmdType::SET_FAN_MODE:
+            if (_onFanMode) _onFanMode(cmd.fanMode);
+            Serial.printf("[WS] Client %u set fan mode to %s\n", clientId, cmd.fanMode);
+            broadcastNow();
+            break;
+
+        case bbq_protocol::CmdType::SESSION_DOWNLOAD:
+            if (_session) {
+                String csvData = _session->toCSV();
+                size_t envLen = 0;
+                char* envelope = bbq_protocol::buildCSVDownloadEnvelope(
+                    csvData.c_str(), csvData.length(), &envLen);
+                if (envelope) {
+                    _ws->text(clientId, envelope, envLen);
+                    free(envelope);
+                }
+            }
+            break;
+
+        default:
+            Serial.printf("[WS] Unknown message type from client %u\n", clientId);
+            break;
     }
 #endif
 }
@@ -253,10 +290,14 @@ void BBQWebServer::onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* clien
         case WS_EVT_CONNECT:
             Serial.printf("[WS] Client #%u connected from %s\n",
                           client->id(), client->remoteIP().toString().c_str());
-            // Send current state immediately on connect
-            {
-                String msg = buildDataMessage();
-                client->text(msg);
+            // Send history if session has data, otherwise send current snapshot
+            if (_session && _session->getPointCount() > 0) {
+                sendHistory(client->id());
+            } else {
+                bbq_protocol::DataPayload payload = buildDataPayload();
+                char buf[512];
+                size_t n = bbq_protocol::buildDataMessage(buf, sizeof(buf), payload);
+                _ws->text(client->id(), buf, n);
             }
             break;
 

@@ -7,6 +7,15 @@ SimThermalModel::SimThermalModel() {
     init(sim_profile_normal);
 }
 
+void SimThermalModel::setFanMode(const char* mode) {
+    strncpy(fanMode, mode, sizeof(fanMode) - 1);
+    fanMode[sizeof(fanMode) - 1] = '\0';
+}
+
+void SimThermalModel::setFanOnThreshold(float threshold) {
+    fanOnThreshold = threshold;
+}
+
 void SimThermalModel::init(const SimProfile& profile) {
     pitTemp = profile.initialPitTemp;
     meat1Temp = profile.meat1Start;
@@ -24,6 +33,8 @@ void SimThermalModel::init(const SimProfile& profile) {
     meat1Connected = true;
     meat2Connected = true;
     simTime = 0;
+    strncpy(fanMode, "fan_and_damper", sizeof(fanMode));
+    fanOnThreshold = 30.0f;
 
     stallEnabled_ = profile.stallEnabled;
     stallTempLow_ = profile.stallTempLow;
@@ -65,8 +76,32 @@ SimResult SimThermalModel::update(float dt) {
 
     // Simplified PID to compute fan/damper from pit error
     float pidOutput = computePID(dt);
-    fanPercent = fmaxf(0, fminf(100, pidOutput));
-    damperPercent = fmaxf(0, fminf(100, pidOutput));
+    pidOutput = fmaxf(0, fminf(100, pidOutput));
+
+    // Apply split-range fan/damper coordination (mirrors firmware main.cpp)
+    if (strcmp(fanMode, "fan_only") == 0) {
+        fanPercent = pidOutput;
+        damperPercent = 100.0f;
+    } else if (strcmp(fanMode, "damper_primary") == 0) {
+        float dpThreshold = fmaxf(fanOnThreshold, 50.0f);
+        damperPercent = pidOutput;
+        fanPercent = 0.0f;
+        if (pidOutput > dpThreshold) {
+            fanPercent = (pidOutput - dpThreshold)
+                       / (100.0f - dpThreshold)
+                       * 100.0f;
+            damperPercent = 100.0f;
+        }
+    } else {
+        // fan_and_damper (default)
+        damperPercent = pidOutput;
+        fanPercent = 0.0f;
+        if (pidOutput > fanOnThreshold) {
+            fanPercent = (pidOutput - fanOnThreshold)
+                       / (100.0f - fanOnThreshold)
+                       * 100.0f;
+        }
+    }
 
     // If fire is out, fan runs at 100% but has no effect
     if (fireOut) {
@@ -100,8 +135,8 @@ SimResult SimThermalModel::update(float dt) {
 
 float SimThermalModel::computePID(float dt) {
     const float Kp = 4.0f;
-    const float Ki = 0.04f;
-    const float Kd = 3.0f;
+    const float Ki = 0.02f;
+    const float Kd = 5.0f;
 
     float error = setpoint - pitTemp;
 
@@ -140,9 +175,15 @@ void SimThermalModel::updatePitTemp(float dt) {
         return;
     }
 
-    // Fire limits the max achievable pit temperature
+    // Effective airflow: damper gates airflow, fan adds forced draft above natural
+    float naturalDraft = 0.15f;
+    float damperOpen = damperPercent / 100.0f;
+    float fanFlow = fanPercent / 100.0f;
+    float airflow = damperOpen * fmaxf(naturalDraft, fanFlow);
+
+    // Fire limits the max achievable pit temperature, modulated by airflow
     float maxFireTemp = 400.0f;
-    float maxAchievable = ambientTemp + (maxFireTemp - ambientTemp) * fireEnergy;
+    float maxAchievable = ambientTemp + (maxFireTemp - ambientTemp) * fireEnergy * fmaxf(airflow, 0.05f);
 
     // Pit approaches the setpoint, capped by fire
     float targetTemp = fminf(setpoint, maxAchievable);
