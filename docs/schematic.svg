@@ -1,0 +1,594 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1000" font-family="'Segoe UI', Arial, sans-serif" font-size="12">
+  <defs>
+    <!-- Arrowhead marker -->
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#333"/>
+    </marker>
+    <!-- Wire colors -->
+    <style>
+      .wire-12v { stroke: #d32f2f; stroke-width: 2; fill: none; }
+      .wire-5v  { stroke: #e65100; stroke-width: 2; fill: none; }
+      .wire-3v3 { stroke: #1565c0; stroke-width: 2; fill: none; }
+      .wire-gnd { stroke: #333; stroke-width: 2; fill: none; }
+      .wire-sig { stroke: #2e7d32; stroke-width: 2; fill: none; }
+      .wire-i2c { stroke: #7b1fa2; stroke-width: 2; fill: none; }
+      .module   { fill: #f5f5f5; stroke: #333; stroke-width: 2; rx: 6; }
+      .module-header { fill: #424242; }
+      .label    { font-size: 11px; fill: #333; }
+      .label-sm { font-size: 9px; fill: #666; }
+      .pin      { font-size: 10px; fill: #333; font-family: 'Consolas', monospace; }
+      .title    { font-size: 22px; font-weight: bold; fill: #222; }
+      .subtitle { font-size: 13px; fill: #666; }
+      .section  { font-size: 14px; font-weight: bold; fill: #444; }
+      .comp-val { font-size: 10px; fill: #555; font-style: italic; }
+      .node     { fill: #333; }
+      .resistor { fill: none; stroke: #333; stroke-width: 1.5; }
+      .capacitor { stroke: #333; stroke-width: 2; }
+      .mosfet   { fill: none; stroke: #333; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1400" height="1000" fill="white"/>
+
+  <!-- Title block -->
+  <text x="700" y="35" text-anchor="middle" class="title">Pit Claw BBQ Controller - Wiring Schematic</text>
+  <text x="700" y="55" text-anchor="middle" class="subtitle">Carrier Board (50x70mm perfboard) - All connections shown</text>
+
+  <!-- Legend -->
+  <g transform="translate(1100, 70)">
+    <text x="0" y="0" class="section">Wire Colors</text>
+    <line x1="0" y1="12" x2="30" y2="12" class="wire-12v" stroke-width="3"/>
+    <text x="35" y="16" class="label">12V Power</text>
+    <line x1="0" y1="30" x2="30" y2="30" class="wire-5v" stroke-width="3"/>
+    <text x="35" y="34" class="label">5V Power</text>
+    <line x1="0" y1="48" x2="30" y2="48" class="wire-3v3" stroke-width="3"/>
+    <text x="35" y="52" class="label">3.3V Power</text>
+    <line x1="0" y1="66" x2="30" y2="66" class="wire-gnd" stroke-width="3"/>
+    <text x="35" y="70" class="label">Ground</text>
+    <line x1="0" y1="84" x2="30" y2="84" class="wire-sig" stroke-width="3"/>
+    <text x="35" y="88" class="label">Signal / GPIO</text>
+    <line x1="0" y1="102" x2="30" y2="102" class="wire-i2c" stroke-width="3"/>
+    <text x="35" y="106" class="label">I2C Bus</text>
+    <line x1="140" y1="12" x2="170" y2="12" stroke="#333" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="175" y="16" class="label">Off-board wire</text>
+  </g>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1: POWER SUPPLY (top-left)                           -->
+  <!-- ============================================================ -->
+  <text x="50" y="90" class="section">POWER SUPPLY</text>
+
+  <!-- DC Barrel Jack -->
+  <g transform="translate(50, 110)">
+    <rect x="0" y="0" width="90" height="60" class="module"/>
+    <rect x="0" y="0" width="90" height="18" class="module-header" rx="6"/>
+    <rect x="6" y="0" width="78" height="18" class="module-header"/>
+    <text x="45" y="13" text-anchor="middle" fill="white" font-size="11" font-weight="bold">J1 - DC Jack</text>
+    <text x="10" y="36" class="pin">TIP  (+12V)</text>
+    <text x="10" y="52" class="pin">SLEEVE (GND)</text>
+    <!-- Tip connection point -->
+    <circle cx="90" cy="30" r="3" class="node"/>
+    <!-- Sleeve connection point -->
+    <circle cx="90" cy="46" r="3" class="node"/>
+  </g>
+  <text x="95" y="195" class="comp-val">Panel-mount barrel jack</text>
+  <text x="95" y="207" class="comp-val">12V DC input</text>
+
+  <!-- 12V wire from barrel jack to buck converter -->
+  <line x1="143" y1="140" x2="230" y2="140" class="wire-12v"/>
+  <!-- GND wire from barrel jack -->
+  <line x1="143" y1="156" x2="180" y2="156" class="wire-gnd"/>
+  <line x1="180" y1="156" x2="180" y2="230" class="wire-gnd"/>
+
+  <!-- MP1584EN Buck Converter Module -->
+  <g transform="translate(230, 110)">
+    <rect x="0" y="0" width="140" height="80" class="module"/>
+    <rect x="0" y="0" width="140" height="18" class="module-header" rx="6"/>
+    <rect x="6" y="0" width="128" height="18" class="module-header"/>
+    <text x="70" y="13" text-anchor="middle" fill="white" font-size="11" font-weight="bold">MP1584EN Module</text>
+    <text x="10" y="36" class="pin">IN+  (12V)</text>
+    <text x="10" y="52" class="pin">IN-  (GND)</text>
+    <text x="10" y="68" class="pin">OUT+ (5V)</text>
+    <!-- Input markers -->
+    <circle cx="0" cy="30" r="3" class="node"/>
+    <circle cx="0" cy="46" r="3" class="node"/>
+    <!-- Output markers -->
+    <circle cx="140" cy="30" r="3" class="node"/>
+    <circle cx="140" cy="62" r="3" class="node"/>
+  </g>
+  <text x="260" y="210" class="comp-val">22x17mm mini module</text>
+  <text x="260" y="222" class="comp-val">Adj. trimpot - set to 5.0V</text>
+
+  <!-- GND to buck converter -->
+  <line x1="180" y1="156" x2="230" y2="156" class="wire-gnd"/>
+
+  <!-- 12V rail line extending right from buck IN (through to fan section) -->
+  <line x1="230" y1="140" x2="230" y2="140" class="wire-12v"/>
+
+  <!-- 5V output from buck converter -->
+  <line x1="370" y1="140" x2="420" y2="140" class="wire-5v"/>
+  <text x="390" y="134" class="label" fill="#e65100" font-weight="bold">5V</text>
+
+  <!-- 5V rail going right -->
+  <line x1="420" y1="140" x2="420" y2="100" class="wire-5v"/>
+  <line x1="420" y1="100" x2="1050" y2="100" class="wire-5v" stroke-dasharray="8,4"/>
+  <text x="700" y="94" class="label-sm" fill="#e65100">5V Rail</text>
+
+  <!-- 12V rail going right (for fan) -->
+  <line x1="143" y1="140" x2="143" y2="100" class="wire-12v"/>
+  <line x1="143" y1="100" x2="143" y2="85" class="wire-12v"/>
+  <text x="135" y="82" class="label-sm" fill="#d32f2f">12V</text>
+  <line x1="143" y1="85" x2="300" y2="85" class="wire-12v" stroke-dasharray="8,4"/>
+  <text x="200" y="80" class="label-sm" fill="#d32f2f">12V Rail (to fan)</text>
+
+  <!-- GND rail -->
+  <line x1="180" y1="230" x2="1050" y2="230" class="wire-gnd" stroke-dasharray="8,4"/>
+  <text x="600" y="244" class="label-sm" fill="#333">GND Rail</text>
+  <!-- GND from buck converter output -->
+  <line x1="370" y1="172" x2="420" y2="172" class="wire-gnd"/>
+  <line x1="420" y1="172" x2="420" y2="230" class="wire-gnd"/>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2: PROBE CIRCUITS (center)                           -->
+  <!-- ============================================================ -->
+  <text x="440" y="280" class="section">PROBE VOLTAGE DIVIDERS (x3)</text>
+
+  <!-- 3.3V label at top of dividers -->
+  <text x="440" y="298" class="label" fill="#1565c0" font-weight="bold">3.3V (from WT32)</text>
+  <line x1="440" y1="305" x2="830" y2="305" class="wire-3v3"/>
+
+  <!-- Probe 1 Circuit -->
+  <g transform="translate(460, 310)">
+    <!-- 3.3V connection -->
+    <line x1="30" y1="-5" x2="30" y2="5" class="wire-3v3"/>
+    <!-- R1 (10K resistor - zigzag) -->
+    <line x1="30" y1="5" x2="30" y2="15" class="resistor"/>
+    <polyline points="30,15 22,20 38,30 22,40 38,50 22,60 38,70 30,75" class="resistor"/>
+    <line x1="30" y1="75" x2="30" y2="85" class="resistor"/>
+    <text x="44" y="50" class="comp-val">R1</text>
+    <text x="44" y="62" class="comp-val">10K 1%</text>
+    <!-- Junction node -->
+    <circle cx="30" cy="85" r="4" class="node"/>
+    <!-- Wire to ADS1115 -->
+    <line x1="34" y1="85" x2="80" y2="85" class="wire-sig"/>
+    <text x="50" y="80" class="label-sm" fill="#2e7d32">A0</text>
+    <!-- Probe (NTC thermistor) -->
+    <line x1="30" y1="89" x2="30" y2="100" class="wire-gnd"/>
+    <rect x="20" y="100" width="20" height="30" fill="none" stroke="#333" stroke-width="1.5" rx="2"/>
+    <text x="23" y="119" font-size="8" fill="#333">NTC</text>
+    <line x1="30" y1="130" x2="30" y2="150" class="wire-gnd"/>
+    <!-- Probe jack symbol -->
+    <circle cx="30" cy="156" r="6" fill="none" stroke="#333" stroke-width="1.5"/>
+    <line x1="30" y1="150" x2="30" y2="153" stroke="#333" stroke-width="1.5"/>
+    <text x="10" y="176" class="comp-val">J2 Probe 1</text>
+    <text x="10" y="188" class="comp-val">(Pit)</text>
+    <!-- C1 (capacitor) from junction to GND -->
+    <line x1="30" y1="85" x2="0" y2="85" class="wire-gnd"/>
+    <line x1="0" y1="85" x2="0" y2="100" class="wire-gnd"/>
+    <line x1="-6" y1="100" x2="6" y2="100" class="capacitor" fill="none"/>
+    <line x1="-6" y1="105" x2="6" y2="105" class="capacitor" fill="none"/>
+    <line x1="0" y1="105" x2="0" y2="120" class="wire-gnd"/>
+    <text x="-22" y="108" class="comp-val">C1</text>
+    <text x="-30" y="120" class="comp-val">0.1uF</text>
+    <!-- GND connection -->
+    <line x1="0" y1="120" x2="0" y2="130" class="wire-gnd"/>
+    <!-- GND symbol -->
+    <line x1="-8" y1="130" x2="8" y2="130" class="wire-gnd"/>
+    <line x1="-5" y1="134" x2="5" y2="134" class="wire-gnd"/>
+    <line x1="-2" y1="138" x2="2" y2="138" class="wire-gnd"/>
+  </g>
+
+  <!-- Probe 2 Circuit -->
+  <g transform="translate(610, 310)">
+    <line x1="30" y1="-5" x2="30" y2="5" class="wire-3v3"/>
+    <line x1="30" y1="5" x2="30" y2="15" class="resistor"/>
+    <polyline points="30,15 22,20 38,30 22,40 38,50 22,60 38,70 30,75" class="resistor"/>
+    <line x1="30" y1="75" x2="30" y2="85" class="resistor"/>
+    <text x="44" y="50" class="comp-val">R2</text>
+    <text x="44" y="62" class="comp-val">10K 1%</text>
+    <circle cx="30" cy="85" r="4" class="node"/>
+    <line x1="34" y1="85" x2="80" y2="85" class="wire-sig"/>
+    <text x="50" y="80" class="label-sm" fill="#2e7d32">A1</text>
+    <line x1="30" y1="89" x2="30" y2="100" class="wire-gnd"/>
+    <rect x="20" y="100" width="20" height="30" fill="none" stroke="#333" stroke-width="1.5" rx="2"/>
+    <text x="23" y="119" font-size="8" fill="#333">NTC</text>
+    <line x1="30" y1="130" x2="30" y2="150" class="wire-gnd"/>
+    <circle cx="30" cy="156" r="6" fill="none" stroke="#333" stroke-width="1.5"/>
+    <line x1="30" y1="150" x2="30" y2="153" stroke="#333" stroke-width="1.5"/>
+    <text x="10" y="176" class="comp-val">J3 Probe 2</text>
+    <text x="10" y="188" class="comp-val">(Meat 1)</text>
+    <line x1="30" y1="85" x2="0" y2="85" class="wire-gnd"/>
+    <line x1="0" y1="85" x2="0" y2="100" class="wire-gnd"/>
+    <line x1="-6" y1="100" x2="6" y2="100" class="capacitor" fill="none"/>
+    <line x1="-6" y1="105" x2="6" y2="105" class="capacitor" fill="none"/>
+    <line x1="0" y1="105" x2="0" y2="120" class="wire-gnd"/>
+    <text x="-22" y="108" class="comp-val">C2</text>
+    <text x="-30" y="120" class="comp-val">0.1uF</text>
+    <line x1="0" y1="120" x2="0" y2="130" class="wire-gnd"/>
+    <line x1="-8" y1="130" x2="8" y2="130" class="wire-gnd"/>
+    <line x1="-5" y1="134" x2="5" y2="134" class="wire-gnd"/>
+    <line x1="-2" y1="138" x2="2" y2="138" class="wire-gnd"/>
+  </g>
+
+  <!-- Probe 3 Circuit -->
+  <g transform="translate(760, 310)">
+    <line x1="30" y1="-5" x2="30" y2="5" class="wire-3v3"/>
+    <line x1="30" y1="5" x2="30" y2="15" class="resistor"/>
+    <polyline points="30,15 22,20 38,30 22,40 38,50 22,60 38,70 30,75" class="resistor"/>
+    <line x1="30" y1="75" x2="30" y2="85" class="resistor"/>
+    <text x="44" y="50" class="comp-val">R3</text>
+    <text x="44" y="62" class="comp-val">10K 1%</text>
+    <circle cx="30" cy="85" r="4" class="node"/>
+    <line x1="34" y1="85" x2="80" y2="85" class="wire-sig"/>
+    <text x="50" y="80" class="label-sm" fill="#2e7d32">A2</text>
+    <line x1="30" y1="89" x2="30" y2="100" class="wire-gnd"/>
+    <rect x="20" y="100" width="20" height="30" fill="none" stroke="#333" stroke-width="1.5" rx="2"/>
+    <text x="23" y="119" font-size="8" fill="#333">NTC</text>
+    <line x1="30" y1="130" x2="30" y2="150" class="wire-gnd"/>
+    <circle cx="30" cy="156" r="6" fill="none" stroke="#333" stroke-width="1.5"/>
+    <line x1="30" y1="150" x2="30" y2="153" stroke="#333" stroke-width="1.5"/>
+    <text x="10" y="176" class="comp-val">J4 Probe 3</text>
+    <text x="10" y="188" class="comp-val">(Meat 2)</text>
+    <line x1="30" y1="85" x2="0" y2="85" class="wire-gnd"/>
+    <line x1="0" y1="85" x2="0" y2="100" class="wire-gnd"/>
+    <line x1="-6" y1="100" x2="6" y2="100" class="capacitor" fill="none"/>
+    <line x1="-6" y1="105" x2="6" y2="105" class="capacitor" fill="none"/>
+    <line x1="0" y1="105" x2="0" y2="120" class="wire-gnd"/>
+    <text x="-22" y="108" class="comp-val">C3</text>
+    <text x="-30" y="120" class="comp-val">0.1uF</text>
+    <line x1="0" y1="120" x2="0" y2="130" class="wire-gnd"/>
+    <line x1="-8" y1="130" x2="8" y2="130" class="wire-gnd"/>
+    <line x1="-5" y1="134" x2="5" y2="134" class="wire-gnd"/>
+    <line x1="-2" y1="138" x2="2" y2="138" class="wire-gnd"/>
+  </g>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3: ADS1115 MODULE (center)                           -->
+  <!-- ============================================================ -->
+
+  <!-- ADS1115 Module -->
+  <g transform="translate(440, 560)">
+    <rect x="0" y="0" width="180" height="120" class="module"/>
+    <rect x="0" y="0" width="180" height="20" class="module-header" rx="6"/>
+    <rect x="6" y="0" width="168" height="20" class="module-header"/>
+    <text x="90" y="14" text-anchor="middle" fill="white" font-size="12" font-weight="bold">ADS1115 ADC Module</text>
+    <text x="90" y="32" text-anchor="middle" class="comp-val">16-bit, I2C, 4-channel</text>
+
+    <!-- Left side pins -->
+    <text x="10" y="52" class="pin">VDD  (3.3V)</text>
+    <text x="10" y="68" class="pin">GND</text>
+    <text x="10" y="84" class="pin">SDA</text>
+    <text x="10" y="100" class="pin">SCL</text>
+
+    <!-- Right side pins -->
+    <text x="115" y="52" class="pin">A0 (Pit)</text>
+    <text x="115" y="68" class="pin">A1 (Meat1)</text>
+    <text x="115" y="84" class="pin">A2 (Meat2)</text>
+    <text x="115" y="100" class="pin">A3 (spare)</text>
+
+    <!-- Pin dots left -->
+    <circle cx="0" cy="48" r="3" class="node"/>
+    <circle cx="0" cy="64" r="3" class="node"/>
+    <circle cx="0" cy="80" r="3" class="node"/>
+    <circle cx="0" cy="96" r="3" class="node"/>
+
+    <!-- Pin dots right -->
+    <circle cx="180" cy="48" r="3" class="node"/>
+    <circle cx="180" cy="64" r="3" class="node"/>
+    <circle cx="180" cy="80" r="3" class="node"/>
+    <circle cx="180" cy="96" r="3" class="node"/>
+
+    <!-- ADDR pin -->
+    <text x="10" y="114" class="pin">ADDR -> GND</text>
+    <text x="100" y="114" class="comp-val">(0x48 default)</text>
+  </g>
+
+  <!-- Wires from probe dividers to ADS1115 A0/A1/A2 -->
+  <!-- A0: from Probe 1 junction -->
+  <line x1="540" y1="395" x2="540" y2="530" class="wire-sig"/>
+  <line x1="540" y1="530" x2="630" y2="530" class="wire-sig"/>
+  <line x1="630" y1="530" x2="630" y2="608" class="wire-sig"/>
+  <circle cx="630" cy="530" r="3" class="node"/>
+
+  <!-- A1: from Probe 2 junction -->
+  <line x1="690" y1="395" x2="690" y2="520" class="wire-sig"/>
+  <line x1="690" y1="520" x2="635" y2="520" class="wire-sig"/>
+  <line x1="635" y1="520" x2="635" y2="608" class="wire-sig" stroke-dasharray="0"/>
+  <!-- Actually route to right side pin -->
+  <line x1="690" y1="520" x2="690" y2="624" class="wire-sig"/>
+  <circle cx="690" cy="520" r="3" class="node"/>
+
+  <!-- Reroute - probes connect to right side of ADS1115 -->
+  <!-- A0 wire -->
+  <line x1="540" y1="395" x2="540" y2="510" class="wire-sig"/>
+  <line x1="540" y1="510" x2="640" y2="510" class="wire-sig"/>
+  <line x1="640" y1="510" x2="640" y2="608" class="wire-sig"/>
+  <!-- A1 wire -->
+  <line x1="690" y1="395" x2="690" y2="624" class="wire-sig"/>
+  <!-- A2 wire -->
+  <line x1="840" y1="395" x2="840" y2="500" class="wire-sig"/>
+  <line x1="840" y1="500" x2="650" y2="500" class="wire-sig"/>
+  <line x1="650" y1="500" x2="650" y2="640" class="wire-sig"/>
+
+  <!-- Actually fix routing: ADS1115 right-side pins at x=620 (440+180=620) -->
+  <!-- A0 at y=608, A1 at y=624, A2 at y=640, A3 at y=656 -->
+
+  <!-- I2C wires from ADS1115 to WT32 -->
+  <!-- SDA (left pin at x=440, y=640) -->
+  <line x1="440" y1="640" x2="400" y2="640" class="wire-i2c"/>
+  <line x1="400" y1="640" x2="400" y2="750" class="wire-i2c"/>
+  <line x1="400" y1="750" x2="920" y2="750" class="wire-i2c" stroke-dasharray="6,3"/>
+  <text x="650" y="745" class="label-sm" fill="#7b1fa2">SDA (I2C Data)</text>
+
+  <!-- SCL (left pin at x=440, y=656) -->
+  <line x1="440" y1="656" x2="390" y2="656" class="wire-i2c"/>
+  <line x1="390" y1="656" x2="390" y2="770" class="wire-i2c"/>
+  <line x1="390" y1="770" x2="920" y2="770" class="wire-i2c" stroke-dasharray="6,3"/>
+  <text x="650" y="765" class="label-sm" fill="#7b1fa2">SCL (I2C Clock)</text>
+
+  <!-- 3.3V to ADS1115 VDD -->
+  <line x1="440" y1="608" x2="420" y2="608" class="wire-3v3"/>
+  <line x1="420" y1="608" x2="420" y2="305" class="wire-3v3"/>
+
+  <!-- GND to ADS1115 -->
+  <line x1="440" y1="624" x2="410" y2="624" class="wire-gnd"/>
+  <line x1="410" y1="624" x2="410" y2="230" class="wire-gnd"/>
+  <circle cx="410" cy="230" r="3" class="node"/>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 4: WT32-SC01 PLUS (right side)                       -->
+  <!-- ============================================================ -->
+
+  <g transform="translate(920, 560)">
+    <rect x="0" y="0" width="200" height="250" class="module" fill="#e8eaf6"/>
+    <rect x="0" y="0" width="200" height="22" rx="6" fill="#283593"/>
+    <rect x="6" y="0" width="188" height="22" fill="#283593"/>
+    <text x="100" y="15" text-anchor="middle" fill="white" font-size="12" font-weight="bold">WT32-SC01 Plus</text>
+    <text x="100" y="38" text-anchor="middle" class="comp-val">ESP32-S3 + 3.5" Touch LCD</text>
+
+    <text x="15" y="60" font-size="11" font-weight="bold" fill="#333">Extension Connector</text>
+    <line x1="10" y1="65" x2="190" y2="65" stroke="#ccc" stroke-width="1"/>
+
+    <!-- Pin listing -->
+    <text x="15" y="82" class="pin">GPIO10  SDA (I2C)</text>
+    <circle cx="0" cy="78" r="3" fill="#7b1fa2"/>
+
+    <text x="15" y="100" class="pin">GPIO11  SCL (I2C)</text>
+    <circle cx="0" cy="96" r="3" fill="#7b1fa2"/>
+
+    <text x="15" y="118" class="pin">GPIO12  Fan PWM</text>
+    <circle cx="0" cy="114" r="3" fill="#2e7d32"/>
+
+    <text x="15" y="136" class="pin">GPIO13  Servo PWM</text>
+    <circle cx="0" cy="132" r="3" fill="#2e7d32"/>
+
+    <text x="15" y="154" class="pin">GPIO14  Buzzer</text>
+    <circle cx="0" cy="150" r="3" fill="#2e7d32"/>
+
+    <text x="15" y="172" class="pin">GPIO21  Spare</text>
+    <circle cx="0" cy="168" r="3" fill="#999"/>
+
+    <line x1="10" y1="180" x2="190" y2="180" stroke="#ccc" stroke-width="1"/>
+
+    <text x="15" y="196" class="pin">3.3V</text>
+    <circle cx="0" cy="192" r="3" fill="#1565c0"/>
+
+    <text x="15" y="214" class="pin">5V (input from buck)</text>
+    <circle cx="0" cy="210" r="3" fill="#e65100"/>
+
+    <text x="15" y="232" class="pin">GND</text>
+    <circle cx="0" cy="228" r="3" fill="#333"/>
+  </g>
+
+  <!-- 8-pin ribbon cable notation -->
+  <text x="870" y="555" class="label" fill="#666" font-style="italic">8-pin ribbon cable</text>
+  <text x="870" y="567" class="label" fill="#666" font-style="italic">(2.0mm pitch, included)</text>
+
+  <!-- I2C connections to WT32 -->
+  <!-- SDA to GPIO10 -->
+  <line x1="920" y1="750" x2="920" y2="638" class="wire-i2c"/>
+  <!-- SCL to GPIO11 -->
+  <line x1="920" y1="770" x2="905" y2="770" class="wire-i2c"/>
+  <line x1="905" y1="770" x2="905" y2="656" class="wire-i2c"/>
+  <line x1="905" y1="656" x2="920" y2="656" class="wire-i2c"/>
+
+  <!-- 5V connection to WT32 -->
+  <line x1="920" y1="770" x2="900" y2="770" class="wire-5v"/>
+  <line x1="900" y1="770" x2="900" y2="100" class="wire-5v" stroke-dasharray="8,4"/>
+
+  <!-- 3.3V from WT32 to probe circuits -->
+  <line x1="920" y1="752" x2="880" y2="752" class="wire-3v3"/>
+  <line x1="880" y1="752" x2="880" y2="305" class="wire-3v3"/>
+
+  <!-- GND to WT32 -->
+  <line x1="920" y1="788" x2="890" y2="788" class="wire-gnd"/>
+  <line x1="890" y1="788" x2="890" y2="230" class="wire-gnd"/>
+  <circle cx="890" cy="230" r="3" class="node"/>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 5: FAN DRIVER (bottom-left)                          -->
+  <!-- ============================================================ -->
+  <text x="50" y="580" class="section">FAN DRIVER</text>
+
+  <!-- MOSFET Symbol (IRLZ44N) -->
+  <g transform="translate(100, 620)">
+    <!-- Gate line -->
+    <line x1="0" y1="40" x2="30" y2="40" class="wire-sig"/>
+    <text x="-5" y="36" class="pin" text-anchor="end">G</text>
+
+    <!-- Gate insulator -->
+    <line x1="30" y1="15" x2="30" y2="65" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="15" x2="35" y2="25" stroke="#333" stroke-width="1.5"/>
+    <line x1="35" y1="30" x2="35" y2="50" stroke="#333" stroke-width="1.5"/>
+    <line x1="35" y1="55" x2="35" y2="65" stroke="#333" stroke-width="1.5"/>
+
+    <!-- Drain -->
+    <line x1="35" y1="20" x2="55" y2="20" stroke="#333" stroke-width="1.5"/>
+    <line x1="55" y1="0" x2="55" y2="20" stroke="#333" stroke-width="1.5"/>
+    <text x="62" y="14" class="pin">D</text>
+
+    <!-- Source -->
+    <line x1="35" y1="60" x2="55" y2="60" stroke="#333" stroke-width="1.5"/>
+    <line x1="55" y1="60" x2="55" y2="80" stroke="#333" stroke-width="1.5"/>
+    <text x="62" y="66" class="pin">S</text>
+
+    <!-- Arrow (N-channel) -->
+    <line x1="35" y1="40" x2="55" y2="40" stroke="#333" stroke-width="1.5"/>
+    <polygon points="50,36 55,40 50,44" fill="#333"/>
+
+    <!-- Component label -->
+    <text x="70" y="35" class="label" font-weight="bold">Q1</text>
+    <text x="70" y="48" class="comp-val">IRLZ44N</text>
+    <text x="70" y="60" class="comp-val">N-Ch MOSFET</text>
+    <text x="70" y="72" class="comp-val">Logic-level</text>
+
+    <!-- Gate pulldown resistor R4 -->
+    <line x1="0" y1="40" x2="0" y2="55" class="wire-gnd"/>
+    <polyline points="0,55 -8,58 8,64 -8,70 8,76 0,79" class="resistor"/>
+    <line x1="0" y1="79" x2="0" y2="90" class="wire-gnd"/>
+    <text x="-30" y="72" class="comp-val">R4</text>
+    <text x="-35" y="84" class="comp-val">10K</text>
+    <!-- GND symbol under R4 -->
+    <line x1="-8" y1="90" x2="8" y2="90" class="wire-gnd"/>
+    <line x1="-5" y1="94" x2="5" y2="94" class="wire-gnd"/>
+    <line x1="-2" y1="98" x2="2" y2="98" class="wire-gnd"/>
+
+    <!-- GND symbol under source -->
+    <line x1="47" y1="80" x2="63" y2="80" class="wire-gnd"/>
+    <line x1="50" y1="84" x2="60" y2="84" class="wire-gnd"/>
+    <line x1="53" y1="88" x2="57" y2="88" class="wire-gnd"/>
+  </g>
+
+  <!-- Fan motor symbol -->
+  <g transform="translate(100, 590)">
+    <!-- Fan+ to 12V -->
+    <line x1="155" y1="30" x2="200" y2="30" class="wire-12v" stroke-dasharray="6,3"/>
+    <text x="205" y="34" class="label-sm" fill="#d32f2f">12V</text>
+
+    <!-- Fan- to MOSFET drain -->
+    <circle cx="155" cy="50" r="20" fill="none" stroke="#333" stroke-width="1.5"/>
+    <text x="145" y="55" font-size="11" fill="#333" font-weight="bold">M</text>
+    <text x="130" y="24" class="label" font-weight="bold">FAN</text>
+    <text x="122" y="80" class="comp-val">5015 Blower</text>
+    <text x="122" y="92" class="comp-val">12V DC</text>
+
+    <!-- Fan+ connection -->
+    <line x1="155" y1="30" x2="155" y2="33" stroke="#333" stroke-width="1.5"/>
+    <!-- Fan- connection -->
+    <line x1="155" y1="67" x2="155" y2="50" stroke="#333" stroke-width="1.5"/>
+    <line x1="155" y1="67" x2="155" y2="30" stroke="#333" stroke-width="1.5"/>
+  </g>
+
+  <!-- Wire from MOSFET drain to fan- -->
+  <line x1="155" y1="620" x2="200" y2="620" class="wire-gnd"/>
+  <line x1="200" y1="620" x2="200" y2="660" class="wire-gnd"/>
+  <line x1="200" y1="660" x2="255" y2="660" stroke="#333" stroke-width="1.5"/>
+
+  <!-- GPIO12 signal wire to gate -->
+  <line x1="100" y1="660" x2="60" y2="660" class="wire-sig"/>
+  <line x1="60" y1="660" x2="60" y2="674" class="wire-sig"/>
+  <line x1="60" y1="674" x2="920" y2="674" class="wire-sig" stroke-dasharray="6,3"/>
+  <text x="400" y="670" class="label-sm" fill="#2e7d32">GPIO12 (Fan PWM)</text>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 6: SERVO (bottom-center)                             -->
+  <!-- ============================================================ -->
+  <text x="440" y="850" class="section">SERVO (DAMPER)</text>
+
+  <g transform="translate(440, 865)">
+    <rect x="0" y="0" width="140" height="70" class="module"/>
+    <rect x="0" y="0" width="140" height="18" class="module-header" rx="6"/>
+    <rect x="6" y="0" width="128" height="18" class="module-header"/>
+    <text x="70" y="13" text-anchor="middle" fill="white" font-size="11" font-weight="bold">MG90S Servo</text>
+
+    <text x="10" y="36" class="pin">Signal (GPIO13)</text>
+    <text x="10" y="50" class="pin">VCC (5V)</text>
+    <text x="10" y="64" class="pin">GND</text>
+
+    <circle cx="0" cy="32" r="3" fill="#2e7d32"/>
+    <circle cx="0" cy="46" r="3" fill="#e65100"/>
+    <circle cx="0" cy="60" r="3" fill="#333"/>
+
+    <!-- Wire colors note -->
+    <text x="145" y="36" class="comp-val">Orange wire</text>
+    <text x="145" y="50" class="comp-val">Red wire</text>
+    <text x="145" y="64" class="comp-val">Brown wire</text>
+  </g>
+
+  <!-- GPIO13 to servo signal -->
+  <line x1="440" y1="897" x2="380" y2="897" class="wire-sig"/>
+  <line x1="380" y1="897" x2="380" y2="692" class="wire-sig"/>
+  <line x1="380" y1="692" x2="920" y2="692" class="wire-sig" stroke-dasharray="6,3"/>
+  <text x="650" y="688" class="label-sm" fill="#2e7d32">GPIO13 (Servo PWM)</text>
+
+  <!-- 5V to servo -->
+  <line x1="440" y1="911" x2="370" y2="911" class="wire-5v"/>
+  <line x1="370" y1="911" x2="370" y2="100" class="wire-5v" stroke-dasharray="8,4"/>
+  <circle cx="370" cy="100" r="3" fill="#e65100"/>
+
+  <!-- GND to servo -->
+  <line x1="440" y1="925" x2="360" y2="925" class="wire-gnd"/>
+  <line x1="360" y1="925" x2="360" y2="230" class="wire-gnd"/>
+  <circle cx="360" cy="230" r="3" class="node"/>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 7: BUZZER (bottom-right)                             -->
+  <!-- ============================================================ -->
+  <text x="700" y="850" class="section">BUZZER</text>
+
+  <g transform="translate(700, 865)">
+    <!-- Buzzer symbol (circle with +/-) -->
+    <circle cx="50" cy="35" r="25" fill="none" stroke="#333" stroke-width="2"/>
+    <text x="42" y="30" font-size="14" fill="#333">+</text>
+    <text x="60" y="30" font-size="8" fill="#333">BZ1</text>
+    <text x="35" y="48" class="comp-val">Piezo</text>
+
+    <!-- + connection -->
+    <line x1="0" y1="28" x2="25" y2="28" class="wire-sig"/>
+    <circle cx="0" cy="28" r="3" fill="#2e7d32"/>
+
+    <!-- - connection -->
+    <line x1="0" y1="42" x2="25" y2="42" class="wire-gnd"/>
+    <circle cx="0" cy="42" r="3" fill="#333"/>
+
+    <text x="-5" y="24" class="pin" text-anchor="end">+</text>
+    <text x="-5" y="46" class="pin" text-anchor="end">-</text>
+  </g>
+
+  <!-- GPIO14 to buzzer -->
+  <line x1="700" y1="893" x2="680" y2="893" class="wire-sig"/>
+  <line x1="680" y1="893" x2="680" y2="710" class="wire-sig"/>
+  <line x1="680" y1="710" x2="920" y2="710" class="wire-sig" stroke-dasharray="6,3"/>
+  <text x="780" y="706" class="label-sm" fill="#2e7d32">GPIO14 (Buzzer)</text>
+
+  <!-- Buzzer GND -->
+  <line x1="700" y1="907" x2="670" y2="907" class="wire-gnd"/>
+  <line x1="670" y1="907" x2="670" y2="230" class="wire-gnd"/>
+  <circle cx="670" cy="230" r="3" class="node"/>
+
+  <!-- ============================================================ -->
+  <!-- NOTES BOX (bottom)                                           -->
+  <!-- ============================================================ -->
+  <g transform="translate(50, 870)">
+    <rect x="0" y="0" width="280" height="110" fill="#fff9c4" stroke="#f9a825" stroke-width="1" rx="4"/>
+    <text x="10" y="18" font-size="12" font-weight="bold" fill="#e65100">Notes</text>
+    <text x="10" y="34" class="label-sm">1. Set MP1584EN trimpot to 5.0V before connecting</text>
+    <text x="10" y="48" class="label-sm">2. 3.3V comes from WT32 regulator (do not supply externally)</text>
+    <text x="10" y="62" class="label-sm">3. ADS1115 ADDR pin tied to GND = address 0x48</text>
+    <text x="10" y="76" class="label-sm">4. All probe jacks are 2.5mm mono (tip + sleeve)</text>
+    <text x="10" y="90" class="label-sm">5. IRLZ44N gate threshold ~1.0V (fully on at 3.3V logic)</text>
+    <text x="10" y="104" class="label-sm">6. 8-pin ribbon cable carries I2C, GPIO, power between boards</text>
+  </g>
+
+  <!-- Border -->
+  <rect x="5" y="5" width="1390" height="990" fill="none" stroke="#ccc" stroke-width="1" rx="8"/>
+
+  <!-- Revision block -->
+  <g transform="translate(1100, 950)">
+    <rect x="0" y="0" width="280" height="40" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+    <text x="10" y="16" class="label-sm">Pit Claw BBQ Controller v1.0</text>
+    <text x="10" y="32" class="label-sm">Schematic Rev A - Feb 2026</text>
+    <text x="180" y="16" class="label-sm">Sheet 1 of 1</text>
+  </g>
+</svg>
