@@ -1,4 +1,4 @@
-# Pit Claw Enclosure & Fan Assembly
+# Pit Claw 3D Printed Parts
 
 3D-printable enclosure for the Pit Claw temperature controller and fan/damper assembly for UDS (Ugly Drum Smoker). All designs are parametric OpenSCAD files.
 
@@ -26,7 +26,7 @@ For the UDS pipe adapter, ASA (105C glass transition) is an option if your smoke
 
 | Part | Orientation | Notes |
 |------|-------------|-------|
-| Front bezel | Face-down (display side on bed) | Flat display surface, screw bosses print upward |
+| Front bezel | Face-down (display side on bed) | Flat display surface, snap rim prints upward |
 | Rear shell | Open-side-up (back wall on bed) | Cavity prints upward, no overhangs |
 | Kickstand | Flat | Simple flat piece, no special orientation needed |
 | Blower housing | Open-side-up | Fan cavity prints upward |
@@ -57,10 +57,9 @@ Fan assembly (`bbq-fan-assembly.scad`):
 
 | Qty | Item | Notes |
 |-----|------|-------|
-| 4 | M3x8mm screws | Join front bezel to rear shell |
-| 4 | M3 heat-set threaded inserts (optional) | Press into rear shell screw bosses with soldering iron. If skipping inserts, M3 screws will self-tap into PETG. |
 | 4 | M3x6mm screws | Mount WT32-SC01 Plus PCB to bezel standoffs |
-| 4 | M3x6mm screws | Mount carrier board to shell standoffs (optional, board can rest on standoffs) |
+
+The front bezel snaps onto the rear shell — no screws needed for case closure. The carrier board rests on standoffs inside the shell and is held in place by panel-mount hardware nuts and case closure.
 
 ### Fan Assembly
 
@@ -76,19 +75,17 @@ Fan assembly (`bbq-fan-assembly.scad`):
 
 ### Controller Enclosure
 
-1. **Install heat-set inserts** (optional): Using a soldering iron at 230C, press M3 heat-set inserts into the 4 screw boss holes in the rear shell. Let cool completely.
+1. **Mount the WT32-SC01 Plus**: Place the display board face-down into the front bezel. The display glass sits against the bezel lip. Secure with 4x M3x6mm screws through the PCB mounting holes into the bezel standoffs.
 
-2. **Mount the WT32-SC01 Plus**: Place the display board face-down into the front bezel. The display glass sits against the bezel lip. Secure with 4x M3x6mm screws through the PCB mounting holes into the bezel standoffs.
+2. **Mount the carrier board**: Place the carrier perfboard onto the standoffs inside the rear shell. The board rests on the pegs and is held by panel-mount hardware.
 
-3. **Mount the carrier board**: Place the carrier perfboard onto the standoffs inside the rear shell. Optionally secure with M3x6mm screws.
+3. **Install panel-mount connectors**: Thread the 3x 2.5mm mono probe jacks and 1x DC barrel jack through their respective holes in the rear shell bottom edge. Secure with their mounting nuts from inside.
 
-4. **Install panel-mount connectors**: Thread the 3x 2.5mm mono probe jacks and 1x DC barrel jack through their respective holes in the rear shell bottom edge. Secure with their mounting nuts from inside.
+4. **Connect wiring**: Connect the 8-pin ribbon cable from the carrier board to the WT32-SC01 Plus extension connector. Route fan and servo wires through the right-side cable slots.
 
-5. **Connect wiring**: Connect the 8-pin ribbon cable from the carrier board to the WT32-SC01 Plus extension connector. Route fan and servo wires through the right-side cable slots.
+5. **Close the enclosure**: Align the bezel's snap-fit rim with the rear shell opening and press firmly until the catches click into place. No screws needed.
 
-6. **Close the enclosure**: Mate the front bezel to the rear shell. The bezel screw bosses align with the shell bosses. Secure with 4x M3x8mm screws.
-
-7. **Attach kickstand** (optional): Press the kickstand hinge tab into the slot on the rear face of the shell. The kickstand should click in and swing freely.
+6. **Attach kickstand** (optional): Press the kickstand hinge tab into the slot on the rear face of the shell. The kickstand should click in and swing freely.
 
 ### Fan + Damper Assembly
 
