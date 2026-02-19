@@ -31,6 +31,57 @@ pio device monitor --baud 115200                    # Serial monitor
 pio run --target clean                              # Clean build
 ```
 
+## Agent Workflow (Feature Branch → PR → Merge)
+
+Every feature, fix, or task should follow this workflow. Each unit of work gets its own branch and PR.
+
+### Steps
+
+```bash
+# 1. Start from latest main
+git checkout main && git pull origin main
+
+# 2. Create feature branch
+git checkout -b feature/<short-descriptive-name>
+
+# 3. Do the work (implement, edit, test locally)
+
+# 4. Commit (can be multiple commits — they'll be squashed)
+git add <specific-files>
+git commit -m "Description of change"
+
+# 5. Push and create PR
+git push -u origin feature/<short-descriptive-name>
+gh pr create --title "Short title" --body "$(cat <<'EOF'
+## Summary
+- What changed and why
+
+## Test plan
+- [ ] Desktop tests pass (`pio test -e native`)
+- [ ] Firmware builds (`pio run -e wt32_sc01_plus`)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+
+# 6. Enable auto-merge (merges automatically when CI passes)
+gh pr merge --squash --auto --delete-branch
+
+# 7. Wait for CI and verify merge
+gh pr checks --watch
+#    If CI fails: fix the issue, commit, push — auto-merge is still armed
+#    If CI passes: PR auto-merges and branch is deleted
+```
+
+### Rules
+
+- **Branch naming**: `feature/<name>`, `fix/<name>`, or `docs/<name>`
+- **Merge strategy**: Always squash merge (single clean commit on main)
+- **CI must pass** before merging — never force merge with failing checks
+- **Delete branch** after merge (use `--delete-branch` flag)
+- **One feature per branch** — don't combine unrelated changes
+- If tests fail after creating the PR, fix the issue, push the fix, and re-check CI before merging
+
 ## Architecture
 
 ### Hardware Target
