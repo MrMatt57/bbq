@@ -34,6 +34,7 @@
   var currentUnits = 'F';        // 'F' or 'C' — display only
   var currentTimeFormat = '12h'; // '12h' or '24h'
   var currentFanMode = 'fan_and_damper'; // 'fan_only', 'fan_and_damper', 'damper_primary'
+  var currentTheme = 'dark'; // 'dark' or 'light' — synced from firmware
 
   var cookTimerStart = null;  // server timestamp (seconds) when cook started
   var cookTimerInterval = null;
@@ -97,6 +98,7 @@
     dom.btnDownloadCSV = document.getElementById('btnDownloadCSV');
     dom.btnToggleUnits = document.getElementById('btnToggleUnits');
     dom.btnToggleTime = document.getElementById('btnToggleTime');
+    dom.btnToggleTheme = document.getElementById('btnToggleTheme');
     dom.legTime = document.getElementById('legTime');
     dom.legPit = document.getElementById('legPit');
     dom.legMeat1 = document.getElementById('legMeat1');
@@ -217,6 +219,7 @@
         var prefs = JSON.parse(stored);
         currentUnits = prefs.units === 'C' ? 'C' : 'F';
         currentTimeFormat = prefs.timeFormat === '24h' ? '24h' : '12h';
+        currentTheme = prefs.theme === 'light' ? 'light' : 'dark';
         notifyEnabled = !!prefs.notify && ('Notification' in window) && Notification.permission === 'granted';
         return;
       }
@@ -231,6 +234,7 @@
       localStorage.setItem('bbq_prefs', JSON.stringify({
         units: currentUnits,
         timeFormat: currentTimeFormat,
+        theme: currentTheme,
         notify: notifyEnabled
       }));
     } catch (e) { /* silently fail */ }
@@ -330,6 +334,23 @@
     var legDamperItem = dom.legDamper.closest('.legend-item');
     if (legFanItem) legFanItem.style.display = mode === 'damper_primary' ? 'none' : '';
     if (legDamperItem) legDamperItem.style.display = mode === 'fan_only' ? 'none' : '';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Theme
+  // ---------------------------------------------------------------------------
+  function applyTheme(theme) {
+    currentTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    dom.btnToggleTheme.textContent = theme === 'light' ? 'Light' : 'Dark';
+    // Recreate chart to pick up theme-aware axis/grid colors
+    recreateChart();
+  }
+
+  function toggleTheme() {
+    var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+    savePrefs();
   }
 
   // ---------------------------------------------------------------------------
@@ -593,9 +614,9 @@
       axes: [
         {
           // X axis — uses formatClockTime for consistent 12h/24h
-          stroke: '#666',
-          grid: { stroke: 'rgba(255,255,255,0.06)' },
-          ticks: { stroke: 'rgba(255,255,255,0.06)' },
+          stroke: currentTheme === 'light' ? '#999' : '#666',
+          grid: { stroke: currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' },
+          ticks: { stroke: currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' },
           values: function (u, vals) {
             return vals.map(function (v) {
               return formatClockTime(new Date(v * 1000));
@@ -606,9 +627,9 @@
           // Left Y axis — Temperature (data stays °F, labels convert)
           scale: 'temp',
           label: 'Temperature (' + unitLabel() + ')',
-          stroke: '#e0e0e0',
-          grid: { stroke: 'rgba(255,255,255,0.06)' },
-          ticks: { stroke: 'rgba(255,255,255,0.06)' },
+          stroke: currentTheme === 'light' ? '#374151' : '#e0e0e0',
+          grid: { stroke: currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' },
+          ticks: { stroke: currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' },
           values: function (u, vals) {
             return vals.map(function (v) {
               var display = currentUnits === 'C' ? Math.round(fToC(v)) : v;
@@ -621,9 +642,9 @@
           scale: 'pct',
           side: 1,
           label: 'Output %',
-          stroke: '#e0e0e0',
+          stroke: currentTheme === 'light' ? '#374151' : '#e0e0e0',
           grid: { show: false },
-          ticks: { stroke: 'rgba(255,255,255,0.06)' },
+          ticks: { stroke: currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' },
           values: function (u, vals) {
             return vals.map(function (v) { return v + '%'; });
           }
@@ -1021,6 +1042,7 @@
   function updateToggleButtons() {
     dom.btnToggleUnits.textContent = '\u00B0' + currentUnits;
     dom.btnToggleTime.textContent = currentTimeFormat;
+    dom.btnToggleTheme.textContent = currentTheme === 'light' ? 'Light' : 'Dark';
   }
 
   function updateUnitLabels() {
@@ -1603,6 +1625,7 @@
   function init() {
     cacheDom();
     loadPrefs();
+    document.documentElement.setAttribute('data-theme', currentTheme);
     updateToggleButtons();
     updateUnitLabels();
     restoreCookTimer();
@@ -1637,6 +1660,7 @@
     // Toggle button listeners
     dom.btnToggleUnits.addEventListener('click', toggleUnits);
     dom.btnToggleTime.addEventListener('click', toggleTimeFormat);
+    dom.btnToggleTheme.addEventListener('click', toggleTheme);
 
     // Settings panel listeners
     dom.btnSettings.addEventListener('click', openSettings);
