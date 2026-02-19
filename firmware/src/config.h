@@ -103,5 +103,5 @@
 #define AP_SSID             "BBQ-Setup"
 #define AP_PASSWORD         "bbqsetup"
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION    "dev"
+#define FIRMWARE_VERSION    "0.1.0"
 #endif
