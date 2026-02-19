@@ -17,8 +17,9 @@ simulator/session.dat
 Thumbs.db
 nul
 
-# Claude Code
-.claude/
+# Claude Code (track commands, ignore local state)
+.claude/*
+!.claude/commands/
 
 # IDE
 *.swp

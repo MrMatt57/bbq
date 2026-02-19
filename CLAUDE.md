@@ -6,6 +6,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 BBQ Temperature Monitor & Controller — an ESP32-S3 based device with 3.5" touchscreen for controlling smoker/grill temperature via PID-controlled fan and optional servo damper. Reads up to 3 Thermoworks-compatible NTC thermistor probes (1 pit + 2 meat). Provides a web UI (PWA) over Wi-Fi for remote monitoring, graphing, and alarms. Touchscreen UI is fully functional without Wi-Fi.
 
+## Development Workflow
+
+This project uses a `/feature` → implement → `/ship` lifecycle for parallel development:
+
+1. **`/feature {description}`** — Run from the main repo on `main`. Claude explores the codebase, asks clarifying questions, then creates a numbered spec in `.specs/`, a git worktree, and a feature branch. The spec captures all context so a fresh session can implement independently.
+
+2. **Implement** — Open a new terminal in the worktree, start Claude, and tell it to implement the spec. The spec file in `.specs/` has everything needed: requirements, design, files to modify, and test plan.
+
+3. **`/ship`** — Run from the feature worktree when implementation is complete. Claude commits, pushes, creates a PR (with summary and test plan from the spec), and enables auto-merge. CI passes → auto-merges → branch auto-deleted.
+
+### Spec Files (`.specs/`)
+
+- Naming: `NNN-branch-name.md` (e.g., `001-ota-updates.md`)
+- Numbered sequentially, starting at `001`
+- Each spec is the single source of truth for its feature — detailed enough for a fresh Claude session to implement without prior context
+
+### Worktree Detection
+
+When the working directory is a git worktree (not the main repo at `C:\dev\bbq\bbq`), check `.specs/` for a feature spec matching the current branch. If found, offer to implement it.
+
+### PR Format
+
+- **Title**: Short, under 70 characters
+- **Body**: `## Summary` (bullet points) + `## Test plan` (checklist)
+
 ## Build & Test Commands
 
 ```bash
