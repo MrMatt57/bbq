@@ -61,6 +61,17 @@ jobs:
         run: pio run -e wt32_sc01_plus --target buildfs
         working-directory: firmware
 
+      - name: Generate STLs from OpenSCAD source
+        run: |
+          sudo apt-get update && sudo apt-get install -y openscad
+          cd enclosure
+          mkdir -p stl
+          openscad -o stl/front-bezel.stl -D 'part="bezel"' bbq-case.scad
+          openscad -o stl/rear-shell.stl -D 'part="shell"' bbq-case.scad
+          openscad -o stl/kickstand.stl -D 'part="kickstand"' bbq-case.scad
+          openscad -o stl/blower-housing.stl -D 'part="housing"' bbq-fan-assembly.scad
+          openscad -o stl/uds-pipe-adapter.stl -D 'part="adapter"' bbq-fan-assembly.scad
+
       - name: Collect artifacts
         run: |
           mkdir -p release

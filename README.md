@@ -65,29 +65,15 @@ Compatible alternatives: Maverick ET-72/73 replacement probes (different Steinha
 
 ### 3D Printed Parts
 
-All parametric [OpenSCAD](https://openscad.org/) (free) source files in `enclosure/`. Pre-exported STLs in `enclosure/stl/` if you just want to print. See the [enclosure README](enclosure/README.md) for print settings and assembly instructions.
+PETG-printed enclosure and fan assembly. All designs are parametric [OpenSCAD](https://openscad.org/) source files with pre-exported STLs ready for slicing.
 
-**Controller enclosure** (`bbq-case.scad`) — three parts:
-- **Front bezel** — holds display, bezel lip frames the screen
-- **Rear shell** — houses carrier board, panel-mount jacks, cable slots, ventilation
+- **Front bezel** — holds the display
+- **Rear shell** — houses carrier board and panel-mount connectors
 - **Kickstand** — detachable flip-out stand
-- Target size: ~100 x 70 x 40mm
-- Assembly: 4x M3x8mm screws
+- **Blower housing** — holds fan, servo, and butterfly damper
+- **UDS pipe adapter** — mounts to 3/4" NPT pipe nipple on drum
 
-**Fan + damper assembly** (`bbq-fan-assembly.scad`) — two parts:
-- **Blower housing** — holds 5015 fan, MG90S servo, butterfly damper plate
-- **UDS pipe adapter** — friction-fits over 3/4" NPT pipe nipple, secured with hose clamp
-- Airflow: outside air → damper → fan → duct → pipe adapter → drum
-- The blower housing output is a standard round duct — future adapters for other smokers (WSM, kamado, offset) mate to the same interface
-
-**Print settings** (both):
-- Material: PETG (80°C glass transition, resists outdoor heat and grease)
-- 4 walls, 30%+ infill, 0.2mm layers, no supports needed
-
-**Additional hardware for assembly:**
-- 4x M3x8mm screws + threaded inserts (controller case)
-- 2x small hose clamps (fan assembly to pipe, adapter to pipe nipple)
-- High-temp gasket tape (seal adapter to pipe nipple)
+See [3D Printed Parts](enclosure/README.md) for print settings, hardware list, and assembly instructions.
 
 ## Getting Started
 
@@ -157,7 +143,7 @@ Hold your finger on the touchscreen for 10 seconds during the boot splash screen
 | [Firmware Development](docs/firmware-development.md) | Building, flashing, testing, architecture, configuration |
 | [Web UI Development](docs/web-development.md) | Simulator, web UI editing, cook profiles, WebSocket protocol |
 | [Wiring](docs/wiring.md) | Wiring diagram, pin assignments, carrier board layout |
-| [Enclosure](enclosure/README.md) | 3D printing, assembly instructions, parametric customization |
+| [3D Printed Parts](enclosure/README.md) | Print settings, hardware list, assembly instructions, parametric customization |
 
 ## License
 
