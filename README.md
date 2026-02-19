@@ -55,7 +55,7 @@ Compatible alternatives: Maverick ET-72/73 replacement probes (different Steinha
 
 ### 3D Printed Parts
 
-All parametric [OpenSCAD](https://openscad.org/) (free) source files in `enclosure/`. Pre-exported STLs in `enclosure/stl/` if you just want to print.
+All parametric [OpenSCAD](https://openscad.org/) (free) source files in `enclosure/`. Pre-exported STLs in `enclosure/stl/` if you just want to print. See the [enclosure README](enclosure/README.md) for print settings and assembly instructions.
 
 **Controller enclosure** (`bbq-case.scad`) — three parts:
 - **Front bezel** — holds display, bezel lip frames the screen
@@ -79,72 +79,29 @@ All parametric [OpenSCAD](https://openscad.org/) (free) source files in `enclosu
 - 2x small hose clamps (fan assembly to pipe, adapter to pipe nipple)
 - High-temp gasket tape (seal adapter to pipe nipple)
 
-## Wiring
+## Getting Started
 
-All components on the carrier perfboard are connected with short soldered traces. External connections use wire runs to panel-mount jacks and the display board.
+### 1. Clone and Set Up
 
-```
-Panel-mount DC barrel jack (12V in)
-  │
-  └─► Carrier Board 12V rail
-       ├─► MP1584EN buck converter IN → OUT (set to 5.0V)
-       │     ├─► WT32-SC01 Plus 5V (via extension cable)
-       │     └─► Servo VCC
-       │
-       ├─► IRLZ44N MOSFET drain
-       │     └─► Fan +12V (fan GND to MOSFET source)
-       │         Gate ◄── GPIO12 (with 10K pulldown to GND)
-       │
-       └─► GND rail (common ground)
-
-WT32-SC01 Plus Extension Connector (8-pin ribbon cable)
-  GPIO10 (SDA) ──► ADS1115 SDA (on carrier board)
-  GPIO11 (SCL) ──► ADS1115 SCL (on carrier board)
-  GPIO12       ──► IRLZ44N gate (on carrier board)
-  GPIO13       ──► Servo signal (wire to servo)
-  GPIO14       ──► Buzzer (on carrier board)
-  3.3V         ──► ADS1115 VDD + voltage divider supply
-  5V           ──► From MP1584EN output
-  GND          ──► Common ground rail
-
-Probe voltage dividers (on carrier board, x3)
-  3.3V ──[10K 1% resistor]──┬──► ADS1115 AINx
-                             │
-                       [0.1uF cap]
-                             │
-    Panel-mount 2.5mm jack ──┴──► GND
-    (tip=signal, sleeve=GND, polarity doesn't matter)
-```
-
-## Software Setup
-
-### Quick Start (Windows)
-
-One script installs everything you need — Git, Python, Node.js, PlatformIO CLI, and OpenSCAD:
-
-```powershell
-# Clone the repo
+```bash
 git clone https://github.com/MrMatt57/pitclaw.git
 cd pitclaw
+```
 
+**Windows** — one script installs everything (Git, Python, PlatformIO CLI, OpenSCAD):
+
+```powershell
 # Run from an elevated (Admin) PowerShell
 powershell -ExecutionPolicy Bypass -File scripts\setup-dev.ps1
 ```
 
-The script is idempotent — safe to run again anytime to verify your setup or after pulling updates that add new dependencies.
+**Other platforms** — install [PlatformIO CLI](https://docs.platformio.org/en/latest/core/installation.html) (`pip install platformio`).
 
-### Manual Prerequisites
+### 2. Wire and Assemble
 
-If you prefer to install tools yourself (or you're not on Windows):
+Solder the carrier board and wire everything up. See the [wiring guide](docs/wiring.md) for the full diagram and pin assignments.
 
-1. [Git](https://git-scm.com/)
-2. [Python 3.12+](https://www.python.org/)
-3. [Node.js LTS](https://nodejs.org/) (for simulator/web UI development)
-4. [PlatformIO CLI](https://docs.platformio.org/en/latest/core/installation.html) — `pip install platformio`
-5. [VS Code](https://code.visualstudio.com/) + [PlatformIO extension](https://platformio.org/install/ide?install=vscode)
-6. [OpenSCAD](https://openscad.org/) (optional, for editing enclosure designs)
-
-### Build & Flash (one time via USB)
+### 3. Build and Flash
 
 ```bash
 cd firmware
@@ -161,18 +118,17 @@ pio run -e wt32_sc01_plus --target uploadfs
 
 After this initial flash, all future firmware updates can be done over Wi-Fi at `http://bbq.local/update`.
 
-### First Boot
+### 4. First Boot
 
-1. Power on the device — the setup wizard starts on the touchscreen
-2. Select your temperature units (°F or °C)
-3. A QR code appears on screen — scan it with your phone to connect to the setup Wi-Fi
-4. Your phone auto-opens a portal page — enter your home Wi-Fi credentials
-5. The device joins your network and registers as `bbq.local`
-6. Plug in probes — the wizard shows live readings to verify they work
-7. The fan, servo, and buzzer do a quick self-test
-8. Setup complete — dashboard appears
+1. Power on — the setup wizard starts on the touchscreen
+2. Select temperature units (°F or °C)
+3. Scan the QR code on screen with your phone to connect to the setup Wi-Fi
+4. Enter your home Wi-Fi credentials in the portal page
+5. Plug in probes — the wizard verifies live readings
+6. Fan, servo, and buzzer do a quick self-test
+7. Setup complete — dashboard appears
 
-### Accessing the Web UI
+### 5. Use the Web UI
 
 Open `http://bbq.local` in any browser on the same Wi-Fi network.
 
@@ -184,49 +140,14 @@ For the best experience, add it to your phone's home screen (it's a PWA):
 
 Hold your finger on the touchscreen for 10 seconds during the boot splash screen.
 
-### Running the Simulator (no hardware needed)
+## Development
 
-Develop and test the web UI without any ESP32 hardware. The simulator serves the same web UI files and speaks the same WebSocket protocol.
-
-```bash
-cd simulator
-npm install          # first time only
-npm run dev          # http://localhost:3000 — auto-refreshes on file changes
-```
-
-Edit files in `firmware/data/` (the web UI) and the browser reloads instantly. Use time acceleration to test long cooks quickly:
-
-```bash
-npm run dev -- --speed 50              # 12-hour brisket cook in ~15 minutes
-npm run dev -- --profile stall         # test the brisket stall scenario
-npm run dev -- --speed 10 --profile fire-out  # test fire-out alarm at 10x
-```
-
-Available profiles: `normal`, `stall`, `hot-fast`, `temp-change`, `lid-open`, `fire-out`, `probe-disconnect`.
-
-### Running Tests
-
-```bash
-# Desktop unit tests (PID, prediction, alarms — no hardware needed)
-pio test -e native
-
-# On-device integration tests
-pio test -e wt32_sc01_plus
-```
-
-## Web UI
-
-The web interface shows:
-- **Live temperatures**: Pit and both meat probes with set points
-- **Temperature graph**: uPlot time-series chart with pit temp, meat temps, fan %, and damper %
-- **Predictive curve**: Dashed projection from current meat temp to target, with predicted done time
-- **Controls**: Set pit target temperature, meat target temperatures, alarm thresholds
-- **Cook timer**: Starts when pit reaches set point; tracks total cook time
-- **Session export**: Download cook data as CSV/JSON (device stores only current/last session — download before starting a new cook)
-- **OTA update**: Flash new firmware at Settings → Update
-- **Alarms**: Configure pit deviation band, meat targets, Pushover notifications
-
-The graph timeline focuses on the active cook — ramp-up time is shown compressed on the left, with the main view starting from when the pit first reaches set temperature. The chart extends to the right with a dashed predictive curve showing the projected path to the meat target temperature, with the predicted done time displayed at the end. All times shown in your browser's local timezone.
+| Guide | Topics |
+|-------|--------|
+| [Firmware Development](docs/firmware-development.md) | Building, flashing, testing, architecture, configuration |
+| [Web UI Development](docs/web-development.md) | Simulator, web UI editing, cook profiles, WebSocket protocol |
+| [Wiring](docs/wiring.md) | Wiring diagram, pin assignments, carrier board layout |
+| [Enclosure](enclosure/README.md) | 3D printing, assembly instructions, parametric customization |
 
 ## License
 
