@@ -2,7 +2,7 @@
 allowed-tools: Bash(git *), Bash(gh *), Read, Glob, Grep
 ---
 
-# /ship — Commit, push, PR, and auto-merge the current feature
+# /ship — Commit, push, PR, auto-merge, wait, and clean up
 
 You are shipping a completed feature. Follow these steps precisely.
 
@@ -50,6 +50,8 @@ git push -u origin feature/{name}
 
 Look for a spec file in `.specs/` that matches the branch name. Read it for context about the feature.
 
+The test plan checklist items should be **checked off** (`[x]`) — the implementation and verification was already done before `/ship` was called. Only leave items unchecked if they genuinely weren't verified.
+
 Create the PR using the spec's summary and test plan:
 
 ```bash
@@ -58,9 +60,9 @@ gh pr create --title "Short descriptive title" --body "$(cat <<'EOF'
 - {Bullet points from spec summary and what was implemented}
 
 ## Test plan
-- [ ] Desktop tests pass (`pio test -e native`)
-- [ ] Firmware builds (`pio run -e wt32_sc01_plus`)
-- [ ] {Any feature-specific test steps from the spec}
+- [x] Desktop tests pass (`pio test -e native`)
+- [x] Firmware builds (`pio run -e wt32_sc01_plus`)
+- [x] {Any feature-specific test steps from the spec — checked off}
 
 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -77,21 +79,63 @@ Enable auto-merge so the PR merges automatically when CI passes:
 gh pr merge --squash --auto --delete-branch
 ```
 
-## Step 6: Report
+## Step 6: Wait for Merge
+
+Tell the user the PR is created and you're waiting for CI, then watch for checks to complete:
+
+```bash
+gh pr checks --watch
+```
+
+Once checks finish, poll until the PR is merged (auto-merge may take a moment after checks pass):
+
+```bash
+# Poll every 10 seconds, up to 2 minutes
+for i in $(seq 1 12); do
+  state=$(gh pr view --json state --jq '.state')
+  if [ "$state" = "MERGED" ]; then break; fi
+  sleep 10
+done
+```
+
+If the PR doesn't merge after polling, inform the user and provide the PR URL.
+
+## Step 7: Clean Up
+
+After the PR is merged:
+
+1. Switch to the main repo directory (`C:\dev\bbq\bbq`)
+2. Pull latest main
+3. Remove the worktree
+
+```bash
+cd {main-repo-path}
+git pull origin main
+git worktree remove ../bbq-{name}
+```
+
+If the worktree removal fails (e.g., dirty files), inform the user.
+
+## Step 8: Report
 
 Print a clear summary:
 
 ```
-Shipped!
+Shipped and merged!
+
+  PR:     {PR URL}
+  Branch: feature/{name} (merged and deleted)
+  Worktree: cleaned up
+```
+
+If the PR hasn't merged yet (timeout), instead print:
+
+```
+PR created and auto-merge enabled:
 
   PR:     {PR URL}
   Branch: feature/{name}
-  Status: Auto-merge enabled (will merge when CI passes)
+  Status: Waiting for CI — will auto-merge when checks pass
 
-Monitor CI:
-  gh pr checks --watch
-
-After merge, clean up the worktree:
-  cd {main-repo-path}
-  git worktree remove ../bbq-{name}
+Worktree still exists at ../bbq-{name} (clean up manually after merge)
 ```

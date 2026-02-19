@@ -1,8 +1,8 @@
 ---
-allowed-tools: Bash(git *), Bash(ls *), Bash(mkdir *), Bash(cp *), Read, Write, Glob, Grep, AskUserQuestion
+allowed-tools: Bash(git *), Bash(ls *), Bash(mkdir *), Bash(cp *), Bash(pio *), Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
-# /feature — Create a new feature branch with spec
+# /feature — Create a new feature branch with spec, implement, and offer to ship
 
 You are starting a new feature lifecycle. Follow these steps precisely.
 
@@ -99,23 +99,18 @@ mkdir -p ../bbq-{name}/.specs
 cp .specs/NNN-{branch-name}.md ../bbq-{name}/.specs/
 ```
 
-## Step 8: Report
+## Step 8: Implement
 
-Print a clear summary:
+Now implement the feature directly in the worktree. Read the spec you just wrote and make all the changes described in it. Work in the worktree directory (`../bbq-{name}`), not the main repo.
 
-```
-Feature ready!
+After implementing, verify the test plan items from the spec:
+- Run any applicable build commands or tests listed in the spec's test plan
+- Confirm the changes match the requirements
 
-  Spec:      .specs/NNN-{branch-name}.md
-  Branch:    feature/{name}
-  Worktree:  ../bbq-{name}
+## Step 9: Report and Offer to Ship
 
-Next steps:
-  1. Open a new terminal in the worktree:
-     cd {absolute-path-to-worktree}
-  2. Start Claude and implement:
-     claude
-     > Implement the feature in .specs/NNN-{branch-name}.md
-  3. When done, ship it:
-     > /ship
-```
+Print a summary of what was implemented, then ask:
+
+> Done! Want me to `/ship` it?
+
+If the user says yes, proceed with the `/ship` workflow (commit, push, PR, auto-merge, wait for merge, clean up worktree).
