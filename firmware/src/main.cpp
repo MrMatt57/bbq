@@ -19,6 +19,7 @@
 #include "display/ui_init.h"
 #include "display/ui_update.h"
 #include "display/ui_setup_wizard.h"
+#include "display/ui_boot_splash.h"
 
 // --- Module instances ---
 TempManager     tempManager;
@@ -39,6 +40,11 @@ static float    g_prevSetpoint   = 225.0f;   // Previous setpoint for change det
 static bool     g_pitReached     = false;     // Has pit ever reached setpoint?
 static uint32_t g_cookStartTime  = 0;         // Epoch when cook timer started
 static unsigned long g_lastPidMs = 0;         // Last PID computation timestamp
+
+// --- Boot phase state machine ---
+enum class BootPhase { SPLASH, WIZARD, RUNNING };
+static BootPhase    g_bootPhase    = BootPhase::SPLASH;
+static unsigned long g_wizardDoneMs = 0;
 
 // --- CookSession data-source callbacks ---
 // These free functions bridge the global module instances into the function-pointer
@@ -141,6 +147,36 @@ static void ui_cb_factory_reset() {
     ESP.restart();
 }
 
+// --- Setup wizard hardware test (non-blocking) ---
+enum class HwTest { NONE, FAN, SERVO, BUZZER };
+static HwTest g_hwTest = HwTest::NONE;
+static unsigned long g_hwTestStartMs = 0;
+
+static void wiz_fan_test() {
+    fanController.setSpeed(75);
+    fanController.update();
+    g_hwTest = HwTest::FAN;
+    g_hwTestStartMs = millis();
+}
+
+static void wiz_servo_test() {
+    servoController.setPosition(100);
+    g_hwTest = HwTest::SERVO;
+    g_hwTestStartMs = millis();
+}
+
+static void wiz_buzzer_test() {
+    alarmManager.setBuzzer(true);
+    g_hwTest = HwTest::BUZZER;
+    g_hwTestStartMs = millis();
+}
+
+static void wiz_complete() {
+    configManager.setSetupComplete(true);
+    configManager.save();
+    Serial.println("[BOOT] Setup wizard complete");
+}
+
 static void ui_cb_wifi_action(const char* action) {
     if (strcmp(action, "disconnect") == 0) {
         wifiManager.disconnect();
@@ -170,7 +206,14 @@ void setup() {
     configManager.begin();
     const AppConfig& cfg = configManager.getConfig();
 
-    // 3. Initialize I2C bus and temperature probes (ADS1115)
+    // 3. Initialize display and show boot splash immediately
+    //    Splash is visible while remaining hardware modules initialize.
+    ui_init();
+    ui_boot_splash_init();
+    ui_tick(10);
+    ui_handler();
+
+    // 4. Initialize I2C bus and temperature probes (ADS1115)
     tempManager.begin();
 
     // Apply per-probe calibration coefficients and offsets from saved config
@@ -181,26 +224,26 @@ void setup() {
     }
     tempManager.setUseFahrenheit(configManager.isFahrenheit());
 
-    // 4. Initialize PID controller with saved tunings
+    // 5. Initialize PID controller with saved tunings
     pidController.begin(cfg.pid.kp, cfg.pid.ki, cfg.pid.kd);
 
-    // 5. Initialize fan PWM output
+    // 6. Initialize fan PWM output
     fanController.begin();
 
-    // 6. Initialize servo / damper output
+    // 7. Initialize servo / damper output
     servoController.begin();
 
-    // 7. Initialize alarm manager (buzzer)
+    // 8. Initialize alarm manager (buzzer)
     alarmManager.begin();
     alarmManager.setPitBand(cfg.alarms.pitBand);
 
-    // 8. Initialize error detection
+    // 9. Initialize error detection
     errorManager.begin();
 
-    // 9. Connect WiFi (STA or AP fallback based on config)
+    // 10. Connect WiFi (splash screen visible during connection)
     wifiManager.begin();
 
-    // 10. Start HTTP server and WebSocket, pass module references
+    // 11. Start HTTP server and WebSocket, pass module references
     webServer.begin();
     webServer.setModules(&tempManager, &pidController, &fanController,
                          &servoController, &configManager, &cookSession,
@@ -210,16 +253,15 @@ void setup() {
     webServer.onSession(ws_onSession);
     webServer.onFanMode(ws_onFanMode);
 
-    // 11. Initialize OTA updates (needs the AsyncWebServer to register /update route)
+    // 12. Initialize OTA updates (needs the AsyncWebServer to register /update route)
     otaManager.begin(webServer.getAsyncServer());
 
-    // 12. Recover any existing cook session from flash
+    // 13. Recover any existing cook session from flash
     cookSession.begin();
     cookSession.setDataSources(cb_getPitTemp, cb_getMeat1Temp, cb_getMeat2Temp,
                                cb_getFanPct, cb_getDamperPct, cb_getFlags);
 
-    // 13. Initialize LVGL touchscreen display
-    ui_init();
+    // 14. Wire up dashboard callbacks and set initial state
     ui_set_callbacks(ui_cb_setpoint, ui_cb_meat_target, ui_cb_alarm_ack);
     ui_set_settings_callbacks(ui_cb_units, ui_cb_fan_mode, ui_cb_new_session, ui_cb_factory_reset);
     ui_set_wifi_callback(ui_cb_wifi_action);
@@ -249,7 +291,7 @@ void setup() {
         }
     }
 
-    // 14. Log "Setup complete" with IP address
+    // 15. Log "Setup complete" with IP address
     Serial.println();
     Serial.printf("[BOOT] Setup complete. IP: %s\n", wifiManager.getIPAddress());
     Serial.println();
@@ -265,6 +307,96 @@ void setup() {
 void loop() {
     unsigned long now = millis();
 
+    // --- Boot splash phase: only process LVGL and splash logic ---
+    if (g_bootPhase == BootPhase::SPLASH) {
+        ui_boot_splash_update();
+        if (!ui_boot_splash_is_active()) {
+            if (ui_boot_splash_factory_reset_triggered()) {
+                Serial.println("[BOOT] Factory reset triggered from splash");
+                configManager.factoryReset();
+                ESP.restart();
+            }
+            if (!configManager.isSetupComplete()) {
+                Serial.println("[BOOT] First boot — starting setup wizard");
+                ui_boot_splash_cleanup();
+                ui_wizard_init();
+                ui_wizard_set_callbacks(wiz_fan_test, wiz_servo_test,
+                                        wiz_buzzer_test, ui_cb_units, wiz_complete);
+                g_bootPhase = BootPhase::WIZARD;
+            } else {
+                ui_boot_splash_cleanup();
+                ui_switch_screen(Screen::DASHBOARD);
+                g_bootPhase = BootPhase::RUNNING;
+                Serial.println("[BOOT] Entering normal operation");
+            }
+        }
+        ui_tick(10);
+        ui_handler();
+        delay(10);
+        return;
+    }
+
+    // --- Setup wizard phase: process LVGL, temp readings, and WiFi ---
+    if (g_bootPhase == BootPhase::WIZARD) {
+        tempManager.update();
+        wifiManager.update();
+
+        // Handle hardware test timeouts (non-blocking)
+        if (g_hwTest != HwTest::NONE) {
+            unsigned long elapsed = now - g_hwTestStartMs;
+            switch (g_hwTest) {
+                case HwTest::FAN:
+                    fanController.update();
+                    if (elapsed >= 1000) {
+                        fanController.setSpeed(0);
+                        fanController.update();
+                        g_hwTest = HwTest::NONE;
+                    }
+                    break;
+                case HwTest::SERVO:
+                    if (elapsed >= 500) {
+                        servoController.setPosition(0);
+                        g_hwTest = HwTest::NONE;
+                    }
+                    break;
+                case HwTest::BUZZER:
+                    if (elapsed >= 300) {
+                        alarmManager.setBuzzer(false);
+                        g_hwTest = HwTest::NONE;
+                    }
+                    break;
+                default: break;
+            }
+        }
+
+        if (ui_wizard_is_active()) {
+            if (now - g_lastDisplayMs >= 1000) {
+                g_lastDisplayMs = now;
+                ui_wizard_update_probes(
+                    tempManager.getPitTemp(),
+                    tempManager.getMeat1Temp(),
+                    tempManager.getMeat2Temp(),
+                    tempManager.isConnected(PROBE_PIT),
+                    tempManager.isConnected(PROBE_MEAT1),
+                    tempManager.isConnected(PROBE_MEAT2));
+            }
+        } else {
+            // Wizard finished — show Done screen for 2 seconds then go to dashboard
+            if (g_wizardDoneMs == 0) {
+                g_wizardDoneMs = now;
+            } else if (now - g_wizardDoneMs >= 2000) {
+                ui_switch_screen(Screen::DASHBOARD);
+                g_bootPhase = BootPhase::RUNNING;
+                Serial.println("[BOOT] Entering normal operation");
+            }
+        }
+        ui_tick(10);
+        ui_handler();
+        delay(10);
+        return;
+    }
+
+    // --- Normal running phase ---
     // 1. Read temperatures from all probes (internally gated at TEMP_SAMPLE_INTERVAL_MS)
     tempManager.update();
 
