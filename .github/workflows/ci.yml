@@ -37,17 +37,30 @@ jobs:
         working-directory: firmware
 
   simulator:
-    name: Simulator Dependencies
+    name: Simulator Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: simulator/package-lock.json
+          python-version: "3.12"
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: simulator
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-sim-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-sim-
+
+      - name: Build simulator
+        run: pio run -e simulator
+        working-directory: firmware

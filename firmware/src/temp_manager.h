@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "units.h"
 #include <stdint.h>
 #include <math.h>
 
@@ -76,8 +77,8 @@ public:
     // Set whether to return temperatures in Fahrenheit
     void setUseFahrenheit(bool useF);
 
-    // Convert Celsius to Fahrenheit (static utility)
-    static float cToF(float tempC);
+    // Convert Celsius to Fahrenheit (delegates to shared units.h)
+    static float cToF(float tempC) { return celsiusToFahrenheit(tempC); }
 
 private:
     // Convert raw ADC value to resistance using voltage divider formula

@@ -18,6 +18,7 @@
 #include "../display/ui_init.h"
 #include "../display/ui_update.h"
 #include "../web_protocol.h"
+#include "../units.h"
 #include "sim_thermal.h"
 #include "sim_profiles.h"
 #include "sim_web_server.h"
@@ -36,12 +37,8 @@ static double g_sessionStartSimTime = 0;
 static uint32_t g_simStartTs = 0;
 static SimProfile* g_activeProfile = nullptr;
 
-static float f_to_c(float f) {
-    return (f - 32.0f) * 5.0f / 9.0f;
-}
-
 static float display_temp(float f) {
-    return g_is_fahrenheit ? f : f_to_c(f);
+    return g_is_fahrenheit ? f : fahrenheitToCelsius(f);
 }
 
 // --------------------------------------------------------------------------

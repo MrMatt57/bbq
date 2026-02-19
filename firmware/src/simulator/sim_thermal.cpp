@@ -1,4 +1,5 @@
 #include "sim_thermal.h"
+#include "../split_range.h"
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
@@ -78,29 +79,11 @@ SimResult SimThermalModel::update(float dt) {
     float pidOutput = computePID(dt);
     pidOutput = fmaxf(0, fminf(100, pidOutput));
 
-    // Apply split-range fan/damper coordination (mirrors firmware main.cpp)
-    if (strcmp(fanMode, "fan_only") == 0) {
-        fanPercent = pidOutput;
-        damperPercent = 100.0f;
-    } else if (strcmp(fanMode, "damper_primary") == 0) {
-        float dpThreshold = fmaxf(fanOnThreshold, 50.0f);
-        damperPercent = pidOutput;
-        fanPercent = 0.0f;
-        if (pidOutput > dpThreshold) {
-            fanPercent = (pidOutput - dpThreshold)
-                       / (100.0f - dpThreshold)
-                       * 100.0f;
-            damperPercent = 100.0f;
-        }
-    } else {
-        // fan_and_damper (default)
-        damperPercent = pidOutput;
-        fanPercent = 0.0f;
-        if (pidOutput > fanOnThreshold) {
-            fanPercent = (pidOutput - fanOnThreshold)
-                       / (100.0f - fanOnThreshold)
-                       * 100.0f;
-        }
+    // Split-range fan/damper coordination (shared with firmware)
+    {
+        SplitRangeOutput sr = splitRange(pidOutput, fanMode, fanOnThreshold);
+        fanPercent = sr.fanPercent;
+        damperPercent = sr.damperPercent;
     }
 
     // If fire is out, fan runs at 100% but has no effect

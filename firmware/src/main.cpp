@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "config.h"
+#include "split_range.h"
 
 // --- Module headers ---
 #include "temp_manager.h"
@@ -295,43 +296,11 @@ void loop() {
 
     // 3. Mode-aware fan + damper from PID output (split-range coordination)
     {
-        float pidOutput = pidController.getOutput();
-        const char* fanMode = configManager.getFanMode();
-        float threshold = configManager.getFanOnThreshold();
-
-        float fanPct = 0.0f;
-        float damperPct = 0.0f;
-
-        if (strcmp(fanMode, "fan_only") == 0) {
-            // Fan gets full PID output, damper parked fully open
-            fanPct = pidOutput;
-            damperPct = 100.0f;
-        } else if (strcmp(fanMode, "damper_primary") == 0) {
-            // Damper handles steady-state alone. Fan only activates when
-            // damper can't keep up (threshold minimum 50%). When fan does
-            // activate, damper opens to 100% so fan isn't fighting a
-            // restricted inlet.
-            float dpThreshold = fmaxf(threshold, 50.0f);
-            damperPct = pidOutput;
-            if (pidOutput > dpThreshold) {
-                fanPct = (pidOutput - dpThreshold)
-                       / (100.0f - dpThreshold)
-                       * 100.0f;
-                damperPct = 100.0f;  // Open damper fully when fan is active
-            }
-        } else {
-            // fan_and_damper (default): damper tracks PID linearly,
-            // fan activates above configurable threshold and scales 0-100%
-            damperPct = pidOutput;
-            if (pidOutput > threshold) {
-                fanPct = (pidOutput - threshold)
-                       / (100.0f - threshold)
-                       * 100.0f;
-            }
-        }
-
-        servoController.setPosition(damperPct);
-        fanController.setSpeed(fanPct);
+        SplitRangeOutput sr = splitRange(pidController.getOutput(),
+                                         configManager.getFanMode(),
+                                         configManager.getFanOnThreshold());
+        servoController.setPosition(sr.damperPercent);
+        fanController.setSpeed(sr.fanPercent);
     }
 
     // 4. Fan controller update (kick-start timing, long-pulse cycling)

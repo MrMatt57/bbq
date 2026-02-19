@@ -150,10 +150,6 @@ void TempManager::setUseFahrenheit(bool useF) {
     _useFahrenheit = useF;
 }
 
-float TempManager::cToF(float tempC) {
-    return tempC * 9.0f / 5.0f + 32.0f;
-}
-
 float TempManager::adcToResistance(int16_t raw) const {
     // Voltage divider: Vout = Vref * R_therm / (R_ref + R_therm)
     // ADC value proportional to voltage: raw / ADC_MAX = Vout / Vref
