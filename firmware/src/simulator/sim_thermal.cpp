@@ -92,11 +92,22 @@ SimResult SimThermalModel::update(float dt) {
         damperPercent = 100;
     }
 
-    // Fire energy model
-    if (fireOut) {
-        fireEnergy = fmaxf(0, fireEnergy - 0.0005f * dt);
-    } else {
-        fireEnergy = fmaxf(0.05f, fireEnergy - fireDecayRate_ * dt);
+    // Fire energy model: airflow feeds oxygen to coals, natural decay consumes fuel
+    {
+        float naturalDraft = 0.15f;
+        float damperOpen = damperPercent / 100.0f;
+        float fanFlow = fanPercent / 100.0f;
+        float effectiveAirflow = damperOpen * fmaxf(naturalDraft, fanFlow);
+
+        if (fireOut) {
+            fireEnergy = fmaxf(0, fireEnergy - 0.0005f * dt);
+        } else {
+            // Minimal air leakage keeps coals smoldering even with damper closed
+            float airflow = fmaxf(effectiveAirflow, 0.03f);
+            float replenishRate = 0.0001f;
+            float netChange = (airflow * replenishRate - fireDecayRate_) * dt;
+            fireEnergy = fmaxf(0.05f, fminf(1.0f, fireEnergy + netChange));
+        }
     }
 
     // Update temperatures
@@ -158,15 +169,10 @@ void SimThermalModel::updatePitTemp(float dt) {
         return;
     }
 
-    // Effective airflow: damper gates airflow, fan adds forced draft above natural
-    float naturalDraft = 0.15f;
-    float damperOpen = damperPercent / 100.0f;
-    float fanFlow = fanPercent / 100.0f;
-    float airflow = damperOpen * fmaxf(naturalDraft, fanFlow);
-
-    // Fire limits the max achievable pit temperature, modulated by airflow
+    // Fire energy determines max achievable pit temperature
+    // (airflow's effect on fire is modeled in the fire energy update)
     float maxFireTemp = 400.0f;
-    float maxAchievable = ambientTemp + (maxFireTemp - ambientTemp) * fireEnergy * fmaxf(airflow, 0.05f);
+    float maxAchievable = ambientTemp + (maxFireTemp - ambientTemp) * fireEnergy;
 
     // Pit approaches the setpoint, capped by fire
     float targetTemp = fminf(setpoint, maxAchievable);
